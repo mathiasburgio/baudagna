@@ -1,0 +1,76 @@
+<script src="/resources/cdn/jquery-3.7.1.min.js"></script>
+<script src="/resources/cdn/bootstrap/js/popper.min.js"></script>
+
+<script src="/resources/cdn/adminlte/js/adminlte.min.js"></script>
+<script src="/resources/cdn/bootstrap/js/bootstrap.min.js"></script>
+<script src="/resources/cdn/sweetalert2/sweetalert2.all.min.js"></script>
+
+<script src="/resources/cdn/FileSaver.js"></script>
+<script src="/resources/cdn/exceljs.min.js"></script>
+<!-- <script src="/resources/cdn/jsBarcode.all.min.js"></script> makerIO no aplica-->
+<script src="/resources/cdn/qrcode.min.js"></script>
+
+<script src="/resources/Fechas.js"></script>
+<script src="/resources/Modal2.js"></script>
+<script src="/resources/Utils.js"></script>
+<script src="/resources/DropdownSearcher.js"></script>
+<script src="/resources/Menu.js"></script>
+<script src="/resources/SuperExcel.js"></script>
+<script src="/resources/Impresor.js"></script>
+<script src="/resources/Imagine.js"></script>
+<script src="/resources/SimpleCRUD.js"></script>
+<script src="/resources/TableSelector.js"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/driver.js@latest/dist/driver.js.iife.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dexie/4.2.0/dexie.min.js" integrity="sha512-LuXLH9xON6/aAGYxi4Z1Dx8588Z80gY3iMmGtUlYmblUc1ulC/cGHuANXIvm8fnIWp5ShUk2MRBIWylGguXF9g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+<script>
+    var fechas, modal, utils, menu, superExcel, impresor, primordial;
+    var localDB = null;
+    const driver = window.driver.js.driver;
+    async function boilerplate(loadPrimordial=true){
+        const driverObj = driver();
+        fechas = new Fechas();
+        modal = new Modal();
+        utils = new Utils();
+        menu = new Menu();
+
+        if(modal?.setAnimation && menu.animations != null) modal.setAnimation(menu.animations);
+
+        if(loadPrimordial){
+            try{
+                let resp = await $.get({url: "/primordial"});  
+                //console.log(resp);
+                window.primordial = resp;              
+                primordial = resp;
+                
+                menu.setPermissions(primordial?.permisos)
+                menu.setExpiration(primordial.fx, primordial?.vencimiento);
+                $(".sidebar .user-panel #emailUsuario").html(primordial.usuarioEmail);
+
+                /* 
+                HABILITAR PARA SINCRO CON DEXIE (INDEXDB)
+                localDB = typeof Dexie != "undefined" ? new Dexie('makerio_DB_' + primordial.emprendimiento._id) : null;
+                if(localDB){
+                    localDB.version(1).stores({
+                        productos: '_id, updatedAt', // 'id' es la clave primaria
+                        clientes: '_id, updatedAt',
+                        proveedores: '_id, updatedAt',
+                        clienteInformal: '_id, updatedAt',
+                    });
+
+                    //accion momentanea para borrar los lastUpdate y forzar recarga
+                    const count = await localDB.productos.count();
+                    if (count === 0) {
+                        localStorage.removeItem('productos_last_update_' + primordial.emprendimiento._id);
+                        localStorage.removeItem('clientes_last_update_' + primordial.emprendimiento._id);
+                        localStorage.removeItem('proveedores_last_update_' + primordial.emprendimiento._id);
+                        localStorage.removeItem('clienteInformal_last_update_' + primordial.emprendimiento._id);
+                    }
+                } */
+            }catch(err){
+                alert(err.toString());
+            }
+        }
+    }
+</script>

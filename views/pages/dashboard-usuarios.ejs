@@ -1,0 +1,66 @@
+<div id="usuarios">
+    <div class="card">
+        <div class="card-body">
+            <button class="btn btn-flat btn-success mb-3" name="crear-usuario"><i class="fas fa-user-plus"></i> Crear usuario</button>
+            <div class="border">
+                <table class="table table-sm mb-0" name="tabla-usuarios">
+                    <thead class="thead-dark">
+                        <tr>
+                            <th>Email</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+            <div name="usuarios-disponibles"></div>
+            <div name="usuarios-pc"></div>
+            <div name="usuarios-smartphone"></div>
+        </div>
+    </div>
+</div>
+<div id="modales" class="d-none">
+    <article id="modal-permisos">
+        <ul class="list-group"></ul>
+    </article> 
+    <article id="modal-cambiar-contrasena-admin">
+        <div class="form-group">
+            <label for="actual-contrasena">Actual contraseña</label>
+            <div class="input-group">
+                <input type="password" class="form-control" name="actual-contrasena" autocomplete="off">
+                <div class="input-group-append">
+                    <button class="btn btn-light border" name="mostrar-contrasena"><i class="fas fa-eye-slash"></i></button>
+                </div>
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="nueva-contrasena">Nueva contraseña</label>
+            <div class="input-group">
+                <input type="password" class="form-control" name="nueva-contrasena" autocomplete="off">
+                <div class="input-group-append">
+                    <button class="btn btn-light border" name="mostrar-contrasena"><i class="fas fa-eye-slash"></i></button>
+                </div>
+            </div>
+            <small class="text-muted">Debe contener 8 caracteres</small>
+        </div>
+        <div class="form-group">
+            <label for="confirmar-contrasena">Confirmar nueva contraseña</label>
+            <div class="input-group">
+                <input type="password" class="form-control" name="confirmar-contrasena" autocomplete="off">
+                <div class="input-group-append">
+                    <button class="btn btn-light border" name="mostrar-contrasena"><i class="fas fa-eye-slash"></i></button>
+                </div>
+            </div>
+            <small class="text-muted">Repita la nueva contraseña</small>
+        </div>
+        <button class="btn btn-flat btn-primary" name="aplicar-cambio">Cambiar contraseña</button>
+    </article>
+</div>
+
+<script src="/js/dashboard-usuarios.js"></script>
+<script>
+    var dashboardUsuarios;
+    window.onload = () => {
+        dashboardUsuarios = new DashboardUsuarios(true);
+    }
+</script>

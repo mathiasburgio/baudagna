@@ -1,0 +1,415 @@
+<div id="creditos-personales" class="row">
+    <div class="col-5">
+        <article class="card card-primary card-outline">
+            <div class="card-header">
+                <h5 class="m-0">Listado</h5>
+            </div>
+            <div class="card-body">
+    
+                <div class="row mb-3">
+                    <div class="col">
+                        <button class="btn btn-light btn-flat btn-sm btn-block" crud="btNew">Nuevo</button>
+                    </div>
+                    <div class="col">
+                        <button class="btn btn-light btn-flat btn-sm btn-block" crud="btModify">Modificar</button>
+                    </div>
+                    <div class="col">
+                        <button class="btn btn-light btn-flat btn-sm btn-block" crud="btDelete">Eliminar</button>
+                    </div>
+                    <div class="col">
+                        <button class="btn btn-light btn-flat btn-sm btn-block" crud="btActions">Acciones</button>
+                    </div>
+                </div>
+    
+                <div class="form-group  mb-3">
+                    <div class="input-group input-group-sm">
+                        <input type="search" autocomplete="off" class="form-control form-control-sm" crud="txSearch" placeholder="Buscar...">                       
+                    </div>
+                    <badge class="badge badge-light cp" name="btFiltrar"s>Mostrar: Todos</badge>
+                    <badge class="badge badge-light cp" name="btOrdenar">Ordenar: Mas recientes</badge>
+                </div>
+    
+                <div class="border" id="container-main-table" style="height: 65vh; overflow-y: scroll;">
+                    <table class="table table-sm mb-0"></table>
+                </div>
+            </div>
+        </article>
+    </div>
+    <div class="col-7">
+        <article class="card card-primary card-outline card-tabs">
+            <div class="card-header p-0 pt-1 border-bottom-0">
+                <ul class="nav nav-tabs" role="tablist">
+                    <li class="nav-item">
+                        <a class="nav-link active" id="tab-datos-generales" data-toggle="pill" href="#datos-generales" role="tab" aria-controls="datos-generales" aria-selected="true">Datos generales</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" id="tab-finalidad" data-toggle="pill" href="#finalidad" role="tab" aria-controls="finalidad" aria-selected="false">Finalidad</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" id="tab-cuotas" data-toggle="pill" href="#cuotas" role="tab" aria-controls="cuotas" aria-selected="false">Cuotas</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" id="tab-documentos" data-toggle="pill" href="#documentos" role="tab" aria-controls="documentos" aria-selected="false">Documentos</a>
+                    </li>
+                </ul>
+            </div>
+            <div class="card-body">
+                <!--NOTA: LOS CAMPOS SON TIPO SEARCH PARA QUE GOOGLE NO INTENTE GUARDARLOS COMO PERSONALES-->
+                <div class="tab-content">
+                    <div class="tab-pane fade active show" id="datos-generales" role="tabpanel" aria-labelledby="tab-datos-generales">
+                        <div class="title mt-0">Datos personales</div>
+                        <div class="row">
+                            <div class="col">
+                                <div class="form-group">
+                                    <label for="">Apellidos</label>
+                                    <input type="search" autocomplete="off" class="form-control form-control-sm" name="datos-personales-apellidos">
+                                </div>
+                            </div>
+                            <div class="col">
+                                <div class="form-group">
+                                    <label for="">Nombres</label>
+                                    <input type="search" autocomplete="off" class="form-control form-control-sm" name="datos-personales-nombres">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col">
+                                <div class="form-group">
+                                    <label for="">Estado civil</label>
+                                    <select name="datos-personales-estado-civil" id="" class="form-control form-control-sm">
+                                        <option value="" selected>Sin especificar</option>
+                                        <option value="soltero">Soltero/a</option>
+                                        <option value="casado">Casado/a</option>
+                                        <option value="divorciado">Divorciado/a</option>
+                                        <option value="viudo">Viudo/a</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col">
+                                <div class="form-group">
+                                    <label for="">Apellido y nombre del conyuge</label>
+                                    <input type="search" autocomplete="off" class="form-control form-control-sm" name="datos-personales-conyuge">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col">
+                                <div class="form-group">
+                                    <label for="">Tipo de documento</label>
+                                    <select name="datos-personales-tipo-documento" id="" class="form-control form-control-sm">
+                                        <option value="" selected>Sin especificar</option>
+                                        <option value="dni">DNI</option>
+                                        <option value="pasaporte">Pasaporte</option>
+                                        <option value="otro">Otro</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col">
+                                <div class="form-group">
+                                    <label for="">Número de documento</label>
+                                    <input type="search" autocomplete="off" class="form-control form-control-sm" name="datos-personales-numero-documento">
+                                </div>
+                            </div>
+                            <div class="col">
+                                <div class="form-group">
+                                    <label for="">Cond. IVA</label>
+                                    <select class="form-control form-control-sm" name="datos-personales-condicion-iva">
+                                        <option value="" selected>Sin especificar</option>
+                                        <option value="1">(A) IVA responsable inscripto</option>
+                                        <option value="4">(B) IVA sujeto exento</option>
+                                        <option value="5">(B) Consumidor final</option>
+                                        <option value="6">(A) Responsable monotributo</option>
+                                        <option value="7">(B) Sujeto no categorizado</option>
+                                        <option value="13">(A) Monotributo social</option>
+                                        <option value="15">(B) IVA no alcanzado</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="title mt-0">Dirección</div>
+                        <div class="row">
+                            <div class="col">
+                                <div class="form-group">
+                                    <label for="">Calle y núm</label>
+                                    <input type="search" autocomplete="off" class="form-control form-control-sm" name="direccion-calle">
+                                </div>
+                            </div>
+                            <div class="col">
+                                <div class="form-group">
+                                    <label for="">Localidad</label>
+                                    <input type="search" autocomplete="off" class="form-control form-control-sm" name="direccion-localidad">
+                                </div>
+                            </div>
+                            <div class="col">
+                                <div class="form-group">
+                                    <label for="">Provincia</label>
+                                    <input type="search" autocomplete="off" class="form-control form-control-sm" name="direccion-provincia">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="title mt-0">Datos de contacto</div>
+                        <div class="row">
+                            <div class="col">
+                                <div class="form-group">
+                                    <label for="">Teléfono</label>
+                                    <input type="search" autocomplete="off" class="form-control form-control-sm" name="contacto-telefono">
+                                </div>
+                            </div>
+                            <div class="col">
+                                <div class="form-group">
+                                    <label for="">Correo electrónico</label>
+                                    <input type="search" autocomplete="off" class="form-control form-control-sm" name="contacto-email">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="title mt-0">Garante</div>
+                        <div class="row">
+                            <div class="col">
+                                <div class="form-group">
+                                    <label for="">Apellido y nombre</label>
+                                    <input type="search" autocomplete="off" class="form-control form-control-sm" name="garante-nombre">
+                                </div>
+                            </div>
+                            <div class="col">
+                                <div class="form-group">
+                                    <label for="">Dirección completa</label>
+                                    <input type="search" autocomplete="off" class="form-control form-control-sm" name="garante-direccion">
+                                </div>
+                            </div>
+                            <div class="col">
+                                <div class="form-group">
+                                    <label for="">Teléfono</label>
+                                    <input type="search" autocomplete="off" class="form-control form-control-sm" name="garante-telefono">
+                                </div>
+                            </div>
+                            <div class="col-12"></div>
+                            <div class="col">
+                                <div class="form-group">
+                                    <label for="">Tipo de documento</label>
+                                    <select name="garante-tipo-documento" id="" class="form-control form-control-sm">
+                                        <option value="" selected>Sin especificar</option>
+                                        <option value="dni">DNI</option>
+                                        <option value="pasaporte">Pasaporte</option>
+                                        <option value="otro">Otro</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col">
+                                <div class="form-group">
+                                    <label for="">Número de documento</label>
+                                    <input type="search" autocomplete="off" class="form-control form-control-sm" name="garante-numero-documento">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="text-right">
+                            <button class="btn btn-flat btn-primary" name="guardar">Guardar</button>
+                        </div>
+                    </div>
+                    <div class="tab-pane fade" id="finalidad" role="tabpanel" aria-labelledby="tab-finalidad">
+                        <div class="form-group">
+                            <label for="">Tipo</label>
+                            <select name="finalidad-tipo" class="form-control form-control-sm">
+                                <option value="general" selected>Prestamo general</option>
+                                <option value="vehiculo">Véhiculo</option>
+                                <option value="vivienda">Vivienda</option>
+                            </select>
+                        </div>
+                        <div finalidad-tipo="vehiculo" class="d-none">
+                            <div class="row">
+                                <div class="form-group col-6">
+                                    <label for="">Marca</label>
+                                    <input type="text" name="finalidad-vehiculo-marca" class="form-control form-control-sm" autocomplete="off">
+                                </div>
+                                <div class="form-group col-6">
+                                    <label for="">Modelo</label>
+                                    <input type="text" name="finalidad-vehiculo-modelo" class="form-control form-control-sm" autocomplete="off">
+                                </div>
+                                <div class="form-group col-6">
+                                    <label for="">Año</label>
+                                    <input type="text" name="finalidad-vehiculo-anio" class="form-control form-control-sm" autocomplete="off">
+                                </div>
+                                <div class="form-group col-6">
+                                    <label for="">Dominio</label>
+                                    <input type="text" name="finalidad-vehiculo-dominio" class="form-control form-control-sm" autocomplete="off">
+                                </div>
+                            </div>
+                        </div>
+                        <div finalidad-tipo="vivienda" class="d-none">
+                            <div class="row">
+                                <div class="form-group col-6">
+                                    <label for="">Acción</label>
+                                    <select name="finalidad-vivienda-accion" class="form-control form-control-sm" autocomplete="off">
+                                        <option value="" selected>Sin asignar</option>
+                                        <option value="refaccion">Refacción</option>
+                                        <option value="compra">Compra</option>
+                                        <option value="alquiler">Alquiler</option>
+                                    </select>
+                                </div>
+                                <div class="form-group col-6">
+                                    <label for="">Provincia</label>
+                                    <input type="text" name="finalidad-vivienda-provincia" class="form-control form-control-sm" autocomplete="off">
+                                </div>
+                                <div class="form-group col-6">
+                                    <label for="">Localidad</label>
+                                    <input type="text" name="finalidad-vivienda-localidad" class="form-control form-control-sm" autocomplete="off">
+                                </div>
+                                <div class="form-group col-6">
+                                    <label for="">Ubicación</label>
+                                    <input type="text" name="finalidad-vivienda-ubicacion" class="form-control form-control-sm" autocomplete="off">
+                                </div>
+                            </div>
+                        </div>
+                        <div finalidad-tipo="general">
+                            <div class="form-group">
+                                <label for="">Detalle general</label>
+                                <textarea name="finalidad-detalle-general" class="form-control"></textarea>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <button class="btn btn-flat btn-primary" name="guardar">Guardar</button>
+                        </div>
+                    </div>
+                    <div class="tab-pane fade" id="cuotas" role="tabpanel" aria-labelledby="tab-cuotas">
+                        <button class="btn btn-flat btn-primary btn-sm mb-2" name="generar-cuotas">Generar cuotas</button>
+                        <div class="border">
+                            <table class="table table-sm mb-0">
+                                <thead class="thead-dark">
+                                    <tr>
+                                        <th>N°</th>
+                                        <th>Vencimiento</th>
+                                        <th>Deuda</th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                                <tfoot>
+                                    <tr>
+                                        <td colspan="100%" class="text-center">
+                                            <button class="btn btn-flat btn-primary" name="agregar-cuota">Agregar cuota</button>
+                                        </td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>                   
+                    <div class="tab-pane fade" id="documentos" role="tabpanel" aria-labelledby="tab-documentos">
+                        <div class="form-group">
+                            <label for="">Documentos adjuntos</label>
+                            <div class="border p-2" style="height: 30vh; overflow-y: scroll;">
+                                <table class="table table-sm mb-0">
+                                    <thead class="thead-dark">
+                                        <tr>
+                                            <th>Nombre</th>
+                                            <th>Tipo</th>
+                                            <th>Tamaño</th>
+                                            <th></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody></tbody>
+                                </table>
+                            </div>
+                            <div class="text-right mt-3">
+                                <button class="btn btn-flat btn-primary">Subir documento</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </article>
+    </div>
+</div>
+
+<div id="modales" class="d-none">
+    <div id="modal-generar-cuotas">
+        <div class="row">
+            <div class="col form-group">
+                <label for="">Monto solicitado</label>
+                <input type="number" autocomplete="off" class="form-control form-control-sm" name="monto-solicitado">
+                <small class="text-muted"></small>
+            </div>
+            <div class="col form-group">
+                <label for="">Intereses</label>
+                <input type="number" autocomplete="off" class="form-control form-control-sm" name="intereses">
+            </div>
+            <div class="col form-group">
+                <label for="">Cuotas</label>
+                <input type="number" autocomplete="off" class="form-control form-control-sm" name="cantidad-cuotas">
+            </div>
+        </div>
+        <div class="row">
+            <div class="col form-group">
+                <label for="">Monto total</label>
+                <input type="number" autocomplete="off" class="form-control form-control-sm" name="monto-total" disabled>
+                <small class="text-muted"></small>
+            </div>
+            <div class="col form-group">
+                <label for="">Monto cuota</label>
+                <input type="number" autocomplete="off" class="form-control form-control-sm" name="monto-cuota" disabled>
+                <small class="text-muted"></small>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col form-group">
+                <label for="">Fecha primer vencimiento</label>
+                <input type="date" class="form-control form-control-sm" name="fecha-primer-vencimiento">
+            </div>
+            <div class="col form-group">
+                <label for="">Fecha último vencimiento</label>
+                <input type="date" class="form-control form-control-sm" name="fecha-ultimo-vencimiento" disabled="">
+            </div>
+        </div>
+        <div class="text-center">
+            <button class="btn btn-flat btn-primary" name="generar">Generar cuotas</button>
+        </div>
+    </div>
+    <div id="modal-cobrar-cuota">
+        <div class="row">
+            <div class="col">
+                <table class="table table-sm">
+                    <thead class="thead-dark">
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Método</th>
+                            <th class="text-right">Monto</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+            <div class="col">
+                <div class="form-group">
+                    <label for="">Fecha</label>
+                    <input type="date" class="form-control" name="fecha">
+                </div>
+                <div class="form-group">
+                    <label for="">Monto a cobrar</label>
+                    <div class="input-group">
+                        <input type="number" class="form-control" name="monto">
+                        <div class="input-group-prepend">
+                            <button class="btn btn-sm btn-warning" name="autocompletar"><i class="fas fa-magic"></i></button>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="">Método/caja</label>
+                    <select name="caja" class="form-control"></select>
+                </div>
+                <div class="text-right">
+                    <button class="btn btn-flat btn-primary" name="cobrar">Cobrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="/js/dashboard-creditos-personales.js"></script>
+<script>
+    var creditosPersonales = null;
+    window.onload = () => {
+        creditosPersonales = new DashboardCreditosPersonales(true);
+    }
+</script>

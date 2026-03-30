@@ -1,0 +1,46 @@
+<div id="dashboard-inicio">
+    <div name="vista-simple">
+        <div class="col-12 text-center">
+            <div class="callout callout-success">
+                Bienvenido
+        </div>
+    </div>
+</div>
+<div id="modales" class="d-none">
+    <div id="modal_abonar">
+        <div class="form-group">
+            <label for="">Plan</label>
+            <div class="input-group">
+                <input type="text" readonly class="form-control" name="plan">
+                <div class="input-group-append">
+                    <button class="btn btn-primary btn-flat" name="cambiar-plan">Cambiar plan</button>
+                </div>
+            </div>
+        </div>
+        <div class="form-group">
+            <label for="">Meses a contratar</label>
+            <select name="meses" class="form-control">
+                <option value="1">1 mes</option>
+                <option value="3">3 meses</option>
+                <option value="6">6 meses</option>
+                <option value="12">12 meses (pagas 11)</option>
+            </select>
+            <small class="text-muted">*Contratá 12 meses y pagá por 11</small>
+        </div>
+        <div class="form-group">
+            <label for="">Total</label>
+            <input type="text" class="form-control" name="total" readonly>
+        </div>
+        <button class="btn btn-flat btn-success btn-block" name="abonar">
+            Abonar con Mercado Pago
+        </button>
+    </div>
+</div>
+
+<script src="/js/dashboard-inicio.js"></script>
+<script>
+    var dashboardInicio;
+    window.onload = () => {
+        dashboardInicio = new DashboardInicio(true);
+    }
+</script>
