@@ -11,7 +11,7 @@ router.post("/usuarios/iniciar-sesion",
     middlewares.createRateLimit(10, 1), // limitar a 10 intentos por minuto para evitar ataques de fuerza bruta
     usuariosController.iniciarSesion);
 
-router.post("/usuarios/cerrar-sesion",
+router.get("/usuarios/cerrar-sesion",
     usuariosController.cerrarSesion);
 
 router.get("/dashboard/usuarios",

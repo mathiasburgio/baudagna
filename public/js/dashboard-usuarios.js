@@ -49,21 +49,7 @@ class DashboardUsuarios{
             if(b.esAdmin) return 1;
             return a.email?.localeCompare(b.email) || 0;
         });
-        this.clonarUsuario();
         return resp;
-    }
-    //OK - clona la lista para comparar luego
-    clonarUsuario(usuario=null){
-        if(usuario == null){//clona lista completa
-            this.listadoUsuariosClonado = JSON.parse(JSON.stringify(this.listadoUsuarios));
-        }else{
-            let ux = this.listadoUsuariosClonado.find(ux=>ux._id == usuario._id);
-            if(ux){//si existe en la lista clonada, lo sobre-escribe
-                Object.assign(ux, JSON.parse(JSON.stringify(usuario)));
-            }else{//si no existe en la lista cloanda, lo agrega
-                this.listadoUsuariosClonado.push(JSON.parse(JSON.stringify(usuario)));
-            }
-        }
     }
     //OK
     async crearUsuario(){
@@ -73,14 +59,12 @@ class DashboardUsuarios{
         if(!email) return;
 
         try{
-            let resp = await $.post({
-                url:"/dashboard/usuarios/crear-hijo",
-                data: { email, contrasena: null }
+            let usuario = await $.post({
+                url:"/usuarios/registrar",
+                data: { email, contrasena: "123456789" }
             });
 
-            this.listadoUsuarios.push(resp.usuario);
-            this.clonarUsuario(resp.usuario);
-            modal.message(`Usuario creado con éxito.<br>La contraseá es <b class='text-monospace'>${resp.contrasena}</b>. Anotelá ya que no se volverá a mostrar por seguridad.`);
+            this.listadoUsuarios.push(usuario);
             this.listarUsuarios();
             menu.toast({level: "success", title: "Crear usuario", message: "Usuario creado con éxito"})
         }catch(err){
@@ -99,7 +83,6 @@ class DashboardUsuarios{
                 <td class="text-right">
                     <button class='btn btn-flat btn-warning mx-1' name='cambiar-contrasena'>Cambiar contraseña</button>
                     <button class='btn btn-flat btn-primary mx-1' name='permisos'>Permisos</button>
-                    <button class='btn btn-flat btn-success mx-1' disabled name='guardar'>Guardar</button>
                     <button class='btn btn-flat btn-danger mx-1' name='eliminar'>Eliminar</button>
                 </td>
             </tr>`;
@@ -116,8 +99,7 @@ class DashboardUsuarios{
             let tr = $(ev.currentTarget).closest("tr");
             let _id = tr.attr("_id");
             let usuario = this.listadoUsuarios.find(ux=>ux._id == _id);
-            if(usuario.esAdmin) return this.cambiarContrasenaAdmin();
-            else return this.modalCambiarContrasenaHijo(usuario);
+            this.modalCambiarContrasena(usuario);
         });
 
         $("[name='tabla-usuarios'] tbody tr [name='permisos']").on("click", ev=>{
@@ -126,12 +108,7 @@ class DashboardUsuarios{
             let usuario = this.listadoUsuarios.find(ux=>ux._id == _id);
             this.modalPermisos(usuario);
         })
-        $("[name='tabla-usuarios'] tbody tr [name='guardar']").on("click", ev=>{
-            let row = $(ev.currentTarget).closest("tr");
-            let _id = row.attr("_id");
-            let usuario = this.listadoUsuarios.find(ux=>ux._id == _id);
-            this.guardarUsuario(usuario);
-        })
+
         $("[name='tabla-usuarios'] tbody tr [name='eliminar']").on("click", ev=>{
             let row = $(ev.currentTarget).closest("tr");
             let _id = row.attr("_id");
@@ -142,24 +119,24 @@ class DashboardUsuarios{
         $("[name='usuarios-creados']").html(`Usuarios creados ${this.listadoUsuarios.length} de 10 disponibles`);
     }
     //OK
-    verificarCambios(){
-        for(let usuario of this.listadoUsuarios){
-            usuario.tieneCambios = false;
-            let usuarioClon = this.listadoUsuariosClonado.find(ux=>ux._id == usuario._id);
-            if(usuario.contrasena != usuarioClon.contrasena) usuario.tieneCambios = true;
-            if(JSON.stringify(usuario.permisos) != JSON.stringify(usuarioClon.permisos)) usuario.tieneCambios = true;
-            $(`[name='tabla-usuarios'] tbody [_id='${usuario._id}'] [name='guardar']`).attr("toggle-shine-button", usuario.tieneCambios.toString());
-        }
-    }
-    //OK
     modalPermisos(usuario){
+        let _permisos = JSON.stringify(usuario.permisos);
         let fox = $("#modal-permisos").html();
         modal.show({
             title: "Permisos",
             body: fox,
             buttons: {color: "primary", text: "Aceptar", name: "dismiss"},
-            onHidden: () =>{
-                this.verificarCambios()
+            onHidden: async () =>{
+                let permisosActuales = JSON.stringify(usuario.permisos);
+                if(permisosActuales == _permisos) return;//no hubo cambios
+
+                let resp = await $.post({
+                    url: "/dashboard/usuarios/editar",
+                    data: { usuarioId: usuario._id, permisos: usuario.permisos },
+                })
+                console.log(resp);
+                Object.assign(usuario, resp);
+                menu.toast({level: "success", title: "Editar usuario", message: "Usuario modificado con éxito"})
             }
         });
 
@@ -186,35 +163,14 @@ class DashboardUsuarios{
         });
     }
     //OK
-    async guardarUsuario(usuario){
-        let resp = await modal.yesno(`¿Confirma guardar los cambios en el usuario?`);
-        if(!resp) return;
-
-        try{
-            let ret = await $.ajax({
-                method: "PUT",
-                url: "/dashboard/usuarios/asignar-permisos-hijo/" + usuario._id,
-                data: { permisos: usuario.permisos }
-            })
-            
-            Object.assign(usuario, ret);
-            this.clonarUsuario(ret);
-
-            this.verificarCambios();
-            menu.toast({level: "success", title: "Editar usuario", message: "Usuario modificado con éxito"})
-        }catch(err){
-            menu.toast({level: "danger", title: "Editar usuario", message: err?.responseText || err.toString()});
-        }
-    }
-    //OK
     async eliminarUsuario(usuario){
         let resp = await modal.yesno(`¿Confirma eliminar el usuario ${usuario.email}?`);
         if(!resp) return;
         
         try{
-            let ret = $.ajax({
-                method: "DELETE",
-                url: "/dashboard/usuarios/eliminar-hijo/" + usuario._id
+            let ret = $.post({
+                url: "/dashboard/usuarios/eliminar",
+                data: { usuarioId: usuario._id }
             });
             
             //borro el usuario de las listas
@@ -228,95 +184,18 @@ class DashboardUsuarios{
         }
     }
     //OK
-    cambiarContrasenaAdmin(){
-        let fox = $("#modal-cambiar-contrasena-admin").html();
-
-        modal.show({
-            title: "Cambiar contraseña",
-            body: fox,
-            buttons: "back"
-        });
-
-        $("#modal .form-group").each((ind, ev)=>{
-            let inp = $(ev).find("input");
-            let btn = $(ev).find("button");
-            utils.bindShowPasswordEvent(btn, inp);
-        })
-
-        $("#modal [name='nueva-contrasena']").on("keyup", ev=>{
-            let inp = $(ev.currentTarget);
-            let contrasena = inp.val();
-        });
-
-        $("#modal [name='confirmar-contrasena']").on("keyup", ev=>{
-            let inp = $(ev.currentTarget);
-            let contrasena = inp.val();
-            let contrasena1 = $("#modal [name='nueva-contrasena']").val();
-        });
-
-        $("#modal [name='aplicar-cambio']").on("click", async ev=>{
-            let actualContrasena = $("#modal [name='actual-contrasena']").val();
-            let nuevaContrasena = $("#modal [name='nueva-contrasena']").val();
-            let confirmarContrasena = $("#modal [name='confirmar-contrasena']").val();
-
-            if(actualContrasena.toString().length < 8) return menu.toast({level: "danger",  message: "Contraseña actual no válida"});
-            if(nuevaContrasena.toString().length < 8) return menu.toast({level: "danger",  message: "La nueva contraseña debe contener al menos 8 caracteres"});
-            if(nuevaContrasena != confirmarContrasena) return menu.toast({level: "danger",  message: "La nueva contraseña y la confirmación no coinciden"});
-            try{
-                let ret = await $.ajax({
-                    method: "PUT",
-                    url: "/dashboard/usuarios/cambiar-contrasena-admin",
-                    data: {
-                        contrasenaActual: actualContrasena,
-                        contrasenaNueva: nuevaContrasena
-                    }
-                });
-                menu.toast({level: "success", title: "Cambiar contraseña", message: "Contraseña cambiada con éxito"});
-                modal.hide();
-            }catch(err){
-                menu.toast({level: "danger", title: "Cambiar contraseña", message: err?.responseText || err.toString()});
-            }
-        });
-
-        $("#modal [name='aplicar-cambio']").on("click", async ev=>{
-            let actualContrasena = $("#modal [name='actual-contrasena']").val();
-            let nuevaContrasena = $("#modal [name='nueva-contrasena']").val();
-            let confirmarContrasena = $("#modal [name='confirmar-contrasena']").val();
-
-            if(actualContrasena.toString().length < 8) return menu.toast({level: "danger",  message: "Contraseña actual no válida"});
-            if(nuevaContrasena.toString().length < 8) return menu.toast({level: "danger",  message: "La nueva contraseña debe contener al menos 8 caracteres"});
-            if(nuevaContrasena != confirmarContrasena) return menu.toast({level: "danger",  message: "La nueva contraseña y la confirmación no coinciden"});
-            try{
-                let ret = await $.ajax({
-                    method: "PUT",
-                    url: "/dashboard/usuarios/cambiar-contrasena-admin",
-                    data: {
-                        contrasenaActual: actualContrasena,
-                        contrasenaNueva: nuevaContrasena
-                    }
-                });
-                console.log(ret);
-                menu.toast({level: "success", title: "Cambiar contraseña", message: "Contraseña cambiada con éxito"});
-                modal.hide();
-            }catch(err){
-                menu.toast({level: "danger", title: "Cambiar contraseña", message: err?.responseText || err.toString()});
-            }
-        });
-    }
-    //OK
-    async modalCambiarContrasenaHijo(usuario){
+    async modalCambiarContrasena(usuario){
         let confirm = await modal.yesno(`¿Confirma cambiar la contraseña del usuario ${usuario.email}?`);
         if(!confirm) return;
 
         let nuevaContrasena = await modal.prompt({label: "Nueva contraseña", text: "password"});
         if(nuevaContrasena.toString().length < 8) return menu.toast({level: "danger",  message: "La nueva contraseña debe contener al menos 8 caracteres"});
 
-        let resp = await $.ajax({
-            method: "PUT",
-            url: "/dashboard/usuarios/cambiar-contrasena-hijo/" + usuario._id,
-            data: { contrasena: nuevaContrasena }
+        let resp = await $.post({
+            url: "/dashboard/usuarios/editar",
+            data: { usuarioId: usuario._id, contrasena: nuevaContrasena }
         })
-        modal.message(`Contraseña cambiada con éxito.<br>La nueva contraseña es <b class='text-monospace'>${resp}</b>. Anótela ya que no se volverá a mostrar por seguridad.`);
+        modal.message(`Contraseña cambiada con éxito.`);
         menu.toast({level: "success", title: "Cambiar contraseña", message: `Contraseña cambiada con éxito.`});
     }
 }

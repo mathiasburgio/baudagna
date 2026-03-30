@@ -14,7 +14,7 @@ async function registrarUsuario(req, res){
         if(usuarioExistente) return res.status(400).send("Ya existe un usuario registrado con ese email");
         let nuevoUsuario = new Usuario({
             email: email,
-            contrasena: await utils.hashPassword(contrasena),
+            contrasena: await utils.getPasswordHash(contrasena),
             permisos: permisos || [],
         });
         await nuevoUsuario.save();
@@ -29,10 +29,14 @@ async function editarUsuario(req, res){
         let { usuarioId, email, contrasena, permisos } = req.body;
         let updateData = {};
         if(email) updateData.email = email.trim().toLowerCase();
-        if(contrasena) updateData.contrasena = await utils.hashPassword(contrasena);
+        if(contrasena) updateData.contrasena = await utils.getPasswordHash(contrasena);
         if(permisos) updateData.permisos = permisos;
 
-        let usuario = await Usuario.findOneAndUpdate({_id: usuarioId}, updateData, {new: true});
+        let usuario = await Usuario.findOneAndUpdate(
+            {_id: usuarioId}, 
+            updateData, 
+            {returnDocument: "after"}
+        );
         res.status(200).json(usuario);
     }catch(e){
         console.log(e);
@@ -42,7 +46,9 @@ async function editarUsuario(req, res){
 async function eliminarUsuario(req, res){
     try{
         let { usuarioId } = req.body;
-        let usuario = await Usuario.findOneAndUpdate({_id: usuarioId}, {eliminado: true});
+        let usuario = await Usuario
+            .findOneAndUpdate({_id: usuarioId}, {eliminado: true});
+        console.log(`Usuario ${usuario.email} eliminado`);
         res.status(200).end("ok");
     }catch(e){
         console.log(e);
@@ -51,7 +57,9 @@ async function eliminarUsuario(req, res){
 }
 async function listarUsuarios(req, res){
     try{
-        let usuarios = await Usuario.find({eliminado: {$ne: true}}).select("-contrasena").lean();
+        let usuarios = await Usuario
+            .find({eliminado: {$ne: true}})
+            .select("-contrasena").lean();
         res.status(200).json(usuarios);
     }catch(e){
         console.log(e);

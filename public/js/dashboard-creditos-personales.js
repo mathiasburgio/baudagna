@@ -27,13 +27,15 @@ class DashboardCreditosPersonales {
                     width: "130px",
                     right: true,
                     fn: (e, f) => {
+                        let span = "-";
                         let aux = (f?.cuotas || []).find(c=> !c.cobrado);
-                        if(!aux) return "-";
-                        let dif = fechas.diff_days(new Date(), aux?.fechaVencimiento);
-                        if(dif < 0)return `<span class='badge badge-danger'>${Math.abs(dif)}</span>`;
-                        if(dif === 0) return `<span class='badge badge-warning'>HOY</span>`;
-                        if(dif <= 5)return `<span class='badge badge-warning'>${dif}</span>`;
-                        if(dif > 5)return `<span class='badge badge-success'>${dif}</span>`;
+                        if(!aux) return span;
+                        let dif = fechas.diff_days(new Date(), aux?.vencimiento);
+                        if(dif < 0) span = `<span class='badge badge-danger mr-1'>${dif}</span>`;
+                        else if(dif === 0)  span = `<span class='badge badge-warning mr-1'>HOY</span>`;
+                        else if(dif <= 5) span = `<span class='badge badge-warning mr-1'>${dif}</span>`;
+                        else if(dif > 5) span = `<span class='badge badge-success mr-1'>${dif}</span>`;
+                        return `<small>${span} ${fechas.parse2(aux?.vencimiento, "ARG_FECHA")}</small>`;
                     }
                 }
             ],
@@ -129,6 +131,29 @@ class DashboardCreditosPersonales {
 
         //cuotas
         $("#cuotas [name='generar-cuotas']").on("click", ()=> this.generarCuotas() );
+
+        $("#cuotas [name='agregar-cuota']").on("click", async ev=>{
+            if(!this.crud?.element?._id) return menu.toast({level: "warning", message: "Primero guarde los datos generales para luego agregar cuotas"});
+            let confirm = await modal.yesno("¿Confirma agregar cuota?");
+            if(!confirm) return;
+
+            let resp = await $.post({
+                url: "/dashboard/creditos-personales/upsert-cuota",
+                data: {
+                    creditoId: this.crud.element._id,
+                    cuotaId: null,
+                    cuota: {
+                        numero: 99,
+                        vencimiento: new Date(),
+                        monto: 100,
+                        cobrado: false,
+                    }
+                }
+            })
+            Object.assign(this.crud.element, resp);
+            this.listarCuotas(this.crud.element.cuotas);
+            menu.toast({level: "success", message: "Cuota guardada con éxito"});
+        });
         menu.hideCortina();
     }
     async guardarDatosGenerales(){
@@ -235,6 +260,7 @@ class DashboardCreditosPersonales {
         let rows = "";
         let punitorios = Number(primordial?.configuracion?.punitorios) || 0;
         cuotas.forEach((c, i)=>{
+            if(c.eliminado) return;
             let cobros = this.crud?.element?.cobros?.filter(cobro => cobro.cuotaId === c._id) || [];
             let sumaCobros = cobros.reduce((acc, cobro) => acc + (cobro?.montoCuota || 0), 0);
             let labelDeuda = "";
@@ -265,6 +291,7 @@ class DashboardCreditosPersonales {
 
                         <div class="dropdown-menu">
                             <a class="dropdown-item" name="cobrar" href="#">Cobrar</a>
+                            <a class="dropdown-item" name="cobros" href="#">Cobros</a>
                             <a class="dropdown-item" name="modificar" href="#">Modificar</a>
                             <a class="dropdown-item" name="eliminar" href="#">Eliminar</a>
                         </div>
@@ -279,41 +306,13 @@ class DashboardCreditosPersonales {
             let cuotaId = tr.attr("cuota-id");
             let cuota = this.crud.element.cuotas.find(c => c._id === cuotaId);
             
-            //verifico si la cuota existe en BD o es una cuota nueva (sin id)
-            if(Number(cuotaId) >= 0 && Number(cuotaId) < 200){
-                menu.toast({level: "warning", message: "No se puede modificar una cuota que no ha sido guardada aún. Modifique los datos y luego guarde el crédito para modificar esta cuota."});
-                return;
-            } 
-
             //verifico si tiene cobros registrados
             if(this.crud.element.cobros?.find(cobro => cobro.cuotaId === cuotaId)){
                 menu.toast({level: "warning", message: "No se puede modificar una cuota que ya tiene cobros registrados"});
                 return;
             }
 
-            let confirm = await modal.yesno("¿Confirma modificar esta cuota?");
-            if(!confirm) return;
-            try{
-                const resp = await $.post({
-                    url: "/dashboard/creditos-personales/modificar-cuota",
-                    data: {
-                        creditoId: this.crud.element._id,
-                        cuota: {
-                            cuotaId: cuotaId,
-                            vencimiento: tr.find("[name='vencimiento']").val(),
-                            punitorio: tr.find("[name='punitorio']").val(),
-                            monto: tr.find("[name='monto']").val()
-                        }
-                    }
-                })
-                console.log(resp);
-                menu.toast({level: "success", message: "Cuota modificada con éxito"});
-                Object.assign(cuota, resp);
-                this.listarCuotas();
-            }catch(err){
-                console.log(err);
-                menu.toast({level: "danger", message: "Error al modificar la cuota"});
-            }
+            this.modalEditarCuota(cuota);
         });
 
         $("#cuotas tbody [name='eliminar']").on("click", async ev=>{
@@ -358,7 +357,14 @@ class DashboardCreditosPersonales {
             let tr = $(ev.currentTarget).closest("tr");
             let cuotaId = tr.attr("cuota-id");
             let cuota = this.crud.element.cuotas.find(c => c._id === cuotaId);
-            this,cobrarCuota(cuota);
+            this.modalCobrarCuota(cuota);
+        });
+
+        $("#cuotas tbody [name='cobros']").on("click", async ev=>{
+            let tr = $(ev.currentTarget).closest("tr");
+            let cuotaId = tr.attr("cuota-id");
+            let cuota = this.crud.element.cuotas.find(c => c._id === cuotaId);
+            this.modalListarCobros(cuota);
         });
     }
     async generarCuotas(){
@@ -511,36 +517,22 @@ class DashboardCreditosPersonales {
 
         });
     }
-    agregarCuota(){
-        this.cuotas.push({
-            numero: this.cuotas.filter(c=>c?.eliminada != true).length + 1,
-            vencimiento: null,
-            monto: 0,
-            punitorio: 0,
-            cobrado: false
-        });
-        this.listarCuotas();
-    }
-    cobrarCuota(cuota){
+    modalCobrarCuota(cuota){
+        console.log("cobrar cuota", cuota);
         modal.show({
             title: "Cobrar cuota",
             body: $("#modal-cobrar-cuota").html(),
             size: "lg",
             buttons: "back"
         });
-    }
-    modalCobrarCuota(cuota){
-        modal.show({
-            title: "Cobrar cuota",
-            body: $("#modal-cobrar-cuota").html(),
-            buttons: "back"
-        });
 
-        $("#modal [name='numero-cuota']").val(cuota.numero);
-        $("#modal [name='fecha-cuota']").val(fechas.parse2(cuota.vencimiento, "USA_FECHA"));
-        $("#modal [name='monto-cuota']").val(cuota.monto);
+        //$("#modal [name='numero-cuota']").val(cuota.numero);
+        $("#modal [name='fecha-vencimiento']").val(fechas.parse2(cuota.vencimiento, "USA_FECHA"));
+        $("#modal [name='fecha-cobro']").val(fechas.getNow(false));
+        $("#modal [name='caja']").html(utils.getOptions({ar: primordial.configuracion.cajas || []}));
+        //$("#modal [name='monto']").val(cuota.monto);
 
-        let cobros = this.crud.element.cobros.filter(c => c.cuotaId === cuota._id);
+        let cobros = this.crud.element.cobros.filter(c => c.cuotaId === cuota._id && c.eliminado != true);
         if(cobros.length > 0){
             let rows = "";
             cobros.forEach(cobro => {
@@ -558,18 +550,21 @@ class DashboardCreditosPersonales {
 
         let sumaCobros = cobros.reduce((acc, cobro) => acc + (cobro.montoCuota || 0), 0);
         let restante = cuota.monto - sumaCobros;
-        $("#modal [name='monto-restante']").val(restante);
-        let diasVencidos = fechas.diff_days(new Date(), cuota.vencimiento);
+        $("#modal [name='monto']").val(restante);
+        let diasVencido = fechas.diff_days(new Date(), cuota.vencimiento);
+        diasVencido = diasVencido < 0 ? Math.abs(diasVencido) : 0;
+        $("#modal [name='dias-vencido']").val(diasVencido);
+        
 
         $("#modal [name='punitorios']").val(Number(primordial?.configuracion?.punitorios) || 0);
         $("#modal [name='punitorios']").on("change", ev=>{
             let $ele = $(ev.currentTarget);
             let v = Number($ele.val()) || 0;
-            let montoPunitorios = v * diasVencidos * restante / 100;
-            $("#modal [name='monto-punitorio']").val(montoPunitorios.toFixed(2));
+            let montoPunitorios = v * diasVencido * restante / 100;
+            $("#modal [name='monto-punitorios']").val(montoPunitorios.toFixed(2));
         });
         $("#modal [name='autocompletar']").on("click", ev=>{
-            $("#modal [name='monto-cobro']").val(restante);
+            $("#modal [name='monto']").val(restante);
         })
 
         $("#modal [name='acreditar']").on("click", async ev=>{
@@ -578,8 +573,8 @@ class DashboardCreditosPersonales {
                 detalle: $("#modal [name='detalle']").val().trim(),
                 caja: $("#modal [name='caja']").val().trim(),
                 montoCobro: Number($("#modal [name='monto-cobro']").val().trim()),
-                montoPunitorio: Number($("#modal [name='monto-punitorio']").val().trim()),
-                diasVencidos: diasVencidos,
+                montoPunitorios: Number($("#modal [name='monto-punitorios']").val().trim()),
+                diasVencidos: diasVencido,
                 creditoId: this.crud.element._id,
                 cuotaId: cuota._id
             }
@@ -596,6 +591,72 @@ class DashboardCreditosPersonales {
             }catch(err){
                 console.log(err);
                 menu.toast({level: "danger", message: "Error al acreditar el cobro"});
+            }finally{
+                $ele.prop("disabled", false);
+            }
+        });
+
+        //actualizo monto-punitorios al cargar el modal
+        if(diasVencido > 0) $("#modal [name='punitorios']").trigger("change");
+    }
+    modalListarCobros(cuota){
+        modal.show({
+            title: `Cobros de la cuota ${cuota.numero}`,
+            body: $("#modal-listar-cobros").html(),
+            size: "lg",
+            buttons: "back"
+        });
+
+        let cobros = this.crud.element.cobros.filter(c => c.cuotaId === cuota._id);
+        let rows = "";
+        cobros.forEach(cobro => {
+            rows += `<tr>
+                <td>${fechas.parse2(cobro.fecha, "ARG_FECHA_HORA")}</td>
+                <td>${cobro.detalle || ""}</td>
+                <td>${cobro.caja || ""}</td>
+                <td class="text-right">$${utils.formatNumber(cobro.montoCuota || 0)}</td>
+                <td class="text-right">$${utils.formatNumber(cobro.montoPunitorio || 0)}</td>
+                <td class="text-right">$${utils.formatNumber((cobro.montoCuota || 0) + (cobro.montoPunitorio || 0))}</td>
+            </tr>`;
+        });
+    }
+    modalEditarCuota(cuota){
+        modal.show({
+            title: "Modificar cuota",
+            body: $("#modal-modificar-cuota").html(),
+            size: "lg",
+            buttons: "back"
+        })
+        $("#modal [name='numero']").val(cuota.numero);
+        $("#modal [name='vencimiento']").val(fechas.parse2(cuota.vencimiento, "USA_FECHA"));
+        $("#modal [name='monto']").val(cuota.monto);
+        $("#modal [name='cobrado']").val(cuota.cobrado == true ? "true" : "false");
+
+        $("#modal [name='guardar']").on("click", async ev=>{
+            let $ele = $(ev.currentTarget);
+            let data = {
+                creditoId: this.crud.element._id,
+                cuotaId: cuota._id,
+                cuota: {
+                    numero: Number($("#modal [name='numero']").val()),
+                    vencimiento: $("#modal [name='vencimiento']").val(),
+                    monto: Number($("#modal [name='monto']").val()),
+                    cobrado: $("#modal [name='cobrado']").val() === "true"  ? true : false,
+                }
+            }
+            $ele.prop("disabled", true);
+            try{
+                let resp = await $.post({
+                    url: "/dashboard/creditos-personales/upsert-cuota",
+                    data: data
+                });
+                console.log(resp);
+                Object.assign(this.crud.element, resp);
+                this.listarCuotas(this.crud.element.cuotas);
+                modal.hide();
+            }catch(err){
+                console.log(err);
+                menu.toast({level: "danger", message: "Error al modificar la cuota"});
             }finally{
                 $ele.prop("disabled", false);
             }

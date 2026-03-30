@@ -105,7 +105,8 @@ async function upsertCuota(req, res){
         if(cuotaId){//modificar
             let cuotaIndex = credito.cuotas.findIndex(c => c._id.toString() == cuotaId);
             if(cuotaIndex == -1) throw "Cuota no encontrada";
-            credito.cuotas[cuotaIndex] = cuota;
+            //console.log(credito.cuotas[cuotaIndex]);
+            Object.assign(credito.cuotas[cuotaIndex], cuota);
         }else{//nueva
             credito.cuotas.push(cuota);
         }

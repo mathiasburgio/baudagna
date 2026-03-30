@@ -1,8 +1,8 @@
 {
-    "obj": {
-        "punitorios": "4",
-        "guardar": ""
-    },
+    "cajas": [
+        "efectivo",
+        "transferencia"
+    ],
     "punitorios": "25",
     "guardar": ""
 }
