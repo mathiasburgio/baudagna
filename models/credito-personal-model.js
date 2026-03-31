@@ -42,6 +42,15 @@ const creditoPersonalSchema = new mongoose.Schema({
         cobrado: Boolean,
         eliminado: Boolean,
     }],
+    generadorCuotas: {
+        montoSolicitado: Number,
+        cantidadCuotas: Number,
+        intereses: Number,
+        montoTotal: Number,
+        montoCuota: Number,
+        fechaPrimerVencimiento: Date,
+        fechaUltimoVencimiento: Date,
+    },
     eliminado: Boolean,
     cerrado: Boolean,
 }, { timestamps: true });

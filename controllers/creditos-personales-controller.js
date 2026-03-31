@@ -84,12 +84,13 @@ async function eliminarCreditoPersonal(req, res){
 //CUOTAS
 async function generarCuotas(req, res){
     try{
-        let {creditoId, cuotas} = req.body;
+        let {creditoId, cuotas, generadorCuotas} = req.body;
         let credito = await CreditoPersonal.findOne({_id: creditoId});
         if(!credito) throw "Crédito no encontrado";
         if(credito.cobros.length > 0) throw "No se pueden generar cuotas para un crédito con cobros registrados";
         
-        credito.cuotas = cuotas;
+        credito.cuotas = cuotas;//las cuotas ya generadas en front
+        credito.generadorCuotas = generadorCuotas; //el objeto completo
         await credito.save();
         res.status(200).json(credito);
     }catch(e){

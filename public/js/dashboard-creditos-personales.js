@@ -154,6 +154,24 @@ class DashboardCreditosPersonales {
             this.listarCuotas(this.crud.element.cuotas);
             menu.toast({level: "success", message: "Cuota guardada con éxito"});
         });
+
+        $("[name='acciones'] [name='cobrar']").on("click", ev=>{
+            let ele = this.crud.element;
+            if(!ele) return menu.toast({level: "warning", message: "Seleccione un crédito para realizar esta acción"}); 
+            let cuota = ele.cuotas.find(c=>c.cobrado == false);
+            if(!cuota) return menu.toast({level: "warning", message: "No hay cuotas para cobrar"});
+            this.modalCobrarCuota(cuota);
+        });
+
+        $("[name='acciones'] [name='whatsapp']").on("click", async ev=>{
+            let ele = this.crud.element;
+            if(!ele) return menu.toast({level: "warning", message: "Seleccione un crédito para realizar esta acción"});
+            let num = ele.datosGenerales?.["contacto-telefono"] || "";
+            let aux = await modal.prompt({type:"text", label: "Número", value: num});
+            if(!aux) return;
+            if(aux.startsWith("549")) aux = aux.slice(3); //quito el 549 para evitar problemas con el formato internacional de whatsapp
+            let w = window.open(`https://wa.me/549${aux.replace(/\D/g, "")}`, "_blank");
+        });
         menu.hideCortina();
     }
     async guardarDatosGenerales(){
@@ -369,7 +387,7 @@ class DashboardCreditosPersonales {
     }
     async generarCuotas(){
         if(!this.crud?.element?._id) return menu.toast({level: "warning", message: "Primero guarde los datos generales para luego generar las cuotas"});
-        if(this.crud.element.cobros.length > 0) return menu.toast({level: "warning", message: "No se pueden generar cuotas para un crédito con cobros registrados"});
+        
 
         modal.show({
             title: "Generar cuotas",
@@ -440,14 +458,40 @@ class DashboardCreditosPersonales {
             }
         });
 
-        /* 
-        se autocompleta
+        
         $("#modal [name='monto-total']").on("change", ev=>{
-        }); */
-        /* 
-        se autocompleta
+            let $ele = $(ev.currentTarget);
+            let v = Number($ele.val()) || 0;
+            $ele.parent().find("small").html("$" + utils.formatNumber(v));
+
+            //let intereses = Number($("#modal [name='intereses']").val() || 0);
+            let montoSolicitado = Number($("#modal [name='monto-solicitado']").val() || 0);
+            let cantidadCuotas = Number($("#modal [name='cantidad-cuotas']").val() || 0);
+            if(v > 0 && montoSolicitado > 0 && cantidadCuotas > 0){
+                let montoCuota = v / cantidadCuotas;
+                $("#modal [name='monto-cuota']").val(montoCuota.toFixed(2));
+                $("#modal [name='monto-cuota']").parent().find("small").html("$" + utils.formatNumber(montoCuota));
+                
+                let intereses = ((v / montoSolicitado) - 1) * 100;
+                $("#modal [name='intereses']").val(intereses.toFixed(2));
+            } 
+        });
         $("#modal [name='monto-cuota']").on("change", ev=>{
-        }); */
+            let $ele = $(ev.currentTarget);
+            let v = Number($ele.val()) || 0;
+            $ele.parent().find("small").html("$" + utils.formatNumber(v));
+
+            let montoSolicitado = Number($("#modal [name='monto-solicitado']").val() || 0);
+            let cantidadCuotas = Number($("#modal [name='cantidad-cuotas']").val() || 0);
+            if(v > 0 && montoSolicitado > 0 && cantidadCuotas > 0){
+                let montoTotal = v * cantidadCuotas;
+                $("#modal [name='monto-total']").val(montoTotal.toFixed(2));
+                $("#modal [name='monto-total']").parent().find("small").html("$" + utils.formatNumber(montoTotal));
+
+                let intereses = ((montoTotal / montoSolicitado) - 1) * 100;
+                $("#modal [name='intereses']").val(intereses.toFixed(2));
+            } 
+        });
         
         $("#modal [name='fecha-primer-vencimiento']").on("change", ev=>{
             let $ele = $(ev.currentTarget);
@@ -502,10 +546,12 @@ class DashboardCreditosPersonales {
                     url: "/dashboard/creditos-personales/generar-cuotas",
                     data: {
                         creditoId: this.crud.element._id,
-                        cuotas: cuotas
+                        cuotas: cuotas,
+                        generadorCuotas: data
                     }
                 });
                 console.log(resp); 
+                Object.assign(this.crud.element, resp);
                 this.listarCuotas(resp.cuotas);
                 modal.hide();
             }catch(err){
@@ -516,6 +562,25 @@ class DashboardCreditosPersonales {
             }
 
         });
+
+        if(this.crud.element.generadorCuotas){
+            let credito = this.crud.element;
+            $("#modal [name='monto-solicitado']").val(credito.generadorCuotas.montoSolicitado);
+            $("#modal [name='monto-solicitado']").parent().find("small").html("$" + utils.formatNumber(credito.generadorCuotas.montoSolicitado));
+            
+            $("#modal [name='intereses']").val(credito.generadorCuotas.intereses);
+            $("#modal [name='cantidad-cuotas']").val(credito.generadorCuotas.cantidadCuotas);
+            
+            $("#modal [name='monto-total']").val(credito.generadorCuotas.montoTotal);
+            $("#modal [name='monto-total']").parent().find("small").html("$" + utils.formatNumber(credito.generadorCuotas.montoTotal));
+
+            $("#modal [name='monto-cuota']").val(credito.generadorCuotas.montoCuota);
+            $("#modal [name='monto-cuota']").parent().find("small").html("$" + utils.formatNumber(credito.generadorCuotas.montoCuota));
+
+            $("#modal [name='fecha-primer-vencimiento']").val(fechas.parse2(credito.generadorCuotas.fechaPrimerVencimiento, "USA_FECHA"));
+            $("#modal [name='fecha-ultimo-vencimiento']").val(fechas.parse2(credito.generadorCuotas.fechaUltimoVencimiento, "USA_FECHA"));   
+        }
+        if(this.crud.element.cobros.length > 0) $("#modal .modal-body button, #modal .modal-body input").prop("disabled", true);
     }
     modalCobrarCuota(cuota){
         console.log("cobrar cuota", cuota);
@@ -554,7 +619,9 @@ class DashboardCreditosPersonales {
         let diasVencido = fechas.diff_days(new Date(), cuota.vencimiento);
         diasVencido = diasVencido < 0 ? Math.abs(diasVencido) : 0;
         $("#modal [name='dias-vencido']").val(diasVencido);
-        
+        $("#modal [name='monto-cuota']").val(cuota.monto);
+        $("#modal [name='cobrado']").val(cuota?.sumaCobros || 0);
+        $("#modal [name='restante']").val((cuota.monto - sumaCobros).toFixed(2));
 
         $("#modal [name='punitorios']").val(Number(primordial?.configuracion?.punitorios) || 0);
         $("#modal [name='punitorios']").on("change", ev=>{
@@ -563,6 +630,15 @@ class DashboardCreditosPersonales {
             let montoPunitorios = v * diasVencido * restante / 100;
             $("#modal [name='monto-punitorios']").val(montoPunitorios.toFixed(2));
         });
+        $("#modal [name='monto-punitorios']").on("change", ev=>{
+            let $ele = $(ev.currentTarget);
+            let v = Number($ele.val()) || 0;
+            let diasVencido = Number($("#modal [name='dias-vencido']").val()) || 0;
+            let punitorios = diasVencido > 0 ? (v * 100) / (restante * diasVencido) : 0;
+            $("#modal [name='punitorios']").val(punitorios.toFixed(2));
+        });
+
+
         $("#modal [name='autocompletar']").on("click", ev=>{
             $("#modal [name='monto']").val(restante);
         })

@@ -102,7 +102,7 @@ async function crearSuperAdmin(){
         let email = process.env.EMAIL_SUPER_ADMIN;
         let contrasena = "123456789";
         let usuarioExistente = await Usuario.findOne({email: email, eliminado: {$ne: true}});
-        if(usuarioExistente) return console.log(`Error al crear super admin. Usuario con email ${email} ya existe.`);
+        if(usuarioExistente) return console.log(`SuperAdmin: ${email}`);
         let nuevoUsuario = new Usuario({
             email: email,
             contrasena: await utils.getPasswordHash(contrasena),
