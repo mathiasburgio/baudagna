@@ -53,15 +53,15 @@ class DashboardCreditosPersonales {
                     width: "130px",
                     right: true,
                     fn: (e, f) => {
+
+                        let cuota = (f?.cuotas || []).find(c=> !c.cobrado);
+                        let aux = this.obtenerSaldoCuota(f, cuota);
                         let span = "-";
-                        let aux = (f?.cuotas || []).find(c=> !c.cobrado);
-                        if(!aux) return span;
-                        let dif = fechasTemporal.diffDays(new Date(), aux?.vencimiento);
-                        if(dif < 0) span = `<span class='badge badge-danger mr-1'>${dif}</span>`;
-                        else if(dif === 0)  span = `<span class='badge badge-warning mr-1'>HOY</span>`;
-                        else if(dif <= 5) span = `<span class='badge badge-warning mr-1'>${dif}</span>`;
-                        else if(dif > 5) span = `<span class='badge badge-success mr-1'>${dif}</span>`;
-                        return `<small>${span} ${fechasTemporal.toString(aux?.vencimiento, "arg")}</small>`;
+                        if(aux.diasVencido > 0) span = `<span class='badge badge-danger mr-1'>${aux.diasVencido}</span>`;
+                        else if(aux.diasVencido === 0)  span = `<span class='badge badge-warning mr-1'>HOY</span>`;
+                        else if(aux.diasVencido < 0 && aux.diasVencido >= -5) span = `<span class='badge badge-warning mr-1'>${Math.abs(aux.diasVencido)}</span>`;
+                        else if(aux.diasVencido < -5) span = `<span class='badge badge-success mr-1'>${Math.abs(aux.diasVencido)}</span>`;
+                        return `<small>${span} ${fechasTemporal.toString(cuota?.vencimiento, "arg")}</small>`;
                     }
                 }
             ],
@@ -130,7 +130,8 @@ class DashboardCreditosPersonales {
             this.crud.onNew();
             $("#datos-generales input, #datos-generales select, #datos-generales textarea, #datos-generales button").prop("disabled", false);
             $("#finalidad input, #finalidad select, #finalidad textarea, #finalidad button").prop("disabled", false);
-            $("#finalidad [tipo-credito]").val("general").change();
+            $("#finalidad [name='finalidad-tipo']").val("general").change();
+            $("#cuotas tbody").html("");
         });
 
         $("[crud='btModify']").on("click", ev=>{
@@ -192,7 +193,7 @@ class DashboardCreditosPersonales {
                     cuotaId: null,
                     cuota: {
                         numero: 99,
-                        vencimiento: new Date(),
+                        vencimiento: fechasTemporal.toString(),
                         monto: 100,
                         cobrado: false,
                     }
@@ -201,6 +202,11 @@ class DashboardCreditosPersonales {
             Object.assign(this.crud.element, resp);
             this.listarCuotas();
             menu.toast({level: "success", message: "Cuota guardada con éxito"});
+        });
+        $("#cuotas [name='listar-cobros']").on("click", async ev=>{
+            let ele = this.crud.element;
+            if(!ele) return menu.toast({level: "warning", message: "Seleccione un crédito para realizar esta acción"}); 
+            this.modalListarCobros();
         });
 
         $("[name='acciones'] [name='cobrar']").on("click", ev=>{
@@ -347,8 +353,8 @@ class DashboardCreditosPersonales {
             }, 0);
             let labelDeuda = "";
             let trColor = "";
-            if(new Date(c.vencimiento) < new Date()){ //vencido
-                let diff = Math.abs(fechasTemporal.diffDays(new Date(), c.vencimiento));
+            if(c?.vencimiento < fechasTemporal.toString()){ //vencido
+                let diff = Math.abs(fechasTemporal.diffDays(fechasTemporal.toString(), c.vencimiento));
                 let restanteCuota = c.monto - sumaCobros;
                 let montoPunitorios = punitorios * diff * restanteCuota ;
                 labelDeuda = "$" + utils.formatNumber(restanteCuota + montoPunitorios);
@@ -379,7 +385,6 @@ class DashboardCreditosPersonales {
 
                         <div class="dropdown-menu">
                             <a class="dropdown-item" name="cobrar" href="#">Cobrar</a>
-                            <a class="dropdown-item" name="cobros" href="#">Cobros</a>
                             <a class="dropdown-item" name="modificar" href="#">Modificar</a>
                             <a class="dropdown-item" name="eliminar" href="#">Eliminar</a>
                         </div>
@@ -465,28 +470,22 @@ class DashboardCreditosPersonales {
 
                 let cobros = creditosPersonales.crud?.element?.cobros?.filter(cobro => cobro.cuotaId === cuota._id && cobro.eliminado != true) || [];
                 let sumaCobros = cobros.reduce((acc, cobro) =>{
-                    if(cobro?.eliminado === true) acc += cobro?.montoCuota || 0;
+                    if(cobro?.eliminado != true) acc += cobro?.montoCuota || 0;
                     return acc;
                 }, 0);
 
-                let diasVencido = fechasTemporal.diffDays(new Date(), cuota.vencimiento);
+                let diasVencido = fechasTemporal.diffDays(cuota?.vencimiento, fechasTemporal.now());
+                let restate = cuota.monto - sumaCobros;
+                let montoPunitorios = (diasVencido * Number(primordial.configuracion.punitorios) * restate) || 0;
 
                 let fox = "";
-                fox += `Monto: ${utils.formatNumber(cuota.monto)}<br>`;
-                if(sumaCobros) fox += `Cobrado: ${utils.formatNumber(sumaCobros)}<br>`;
-                if(diasVencido < 0){
-                    diasVencido = Math.abs(diasVencido);
-                    let aux = (diasVencido * Number(primordial.configuracion.punitorios) * (cuota.monto - sumaCobros));
-                    fox += `Punitorios: ${primordial.configuracion.punitorios}%<br>`;
-                    fox += `Días vencido: ${diasVencido}<br>`;
-                    fox += `<div class='text-info'>Monto punitorios: ${utils.formatNumber(aux)}</div>`;
-                    fox += `<small class='text-info'>(dias venc * punit * (Monto - Cobrado))</small><br>`;
-                    fox += `<div class='text-success'>Monto total: ${utils.formatNumber(aux + cuota.monto - sumaCobros)}</div>`;
-                    fox += `<small class='text-success'>punit + cuota - cobrado</small><br>`;
-                }
-
-
-                return fox
+                fox += `Monto cuota: ${utils.formatNumber(cuota.monto)}<br>`;
+                fox += `Monto cobrado: ${utils.formatNumber(sumaCobros)}<br>`;
+                fox += `Restante: ${utils.formatNumber(restate)}<br>`;
+                fox += `Días vencido: ${diasVencido > 0 ? diasVencido : 0}<br>`;
+                fox += `Monto punitorios: ${utils.formatNumber(montoPunitorios)}<br>`;
+                fox += `Total a pagar: ${utils.formatNumber(restate + montoPunitorios)}<br>`;
+                return fox;
             },
             html: true,
             trigger: "hover"
@@ -503,7 +502,7 @@ class DashboardCreditosPersonales {
             buttons: "back"
         });
 
-        $("#modal [name='fecha-primer-vencimiento']").val(fechasTemporal.toString(new Date(), "usa"));
+        $("#modal [name='fecha-primer-vencimiento']").val(fechasTemporal.toString());
 
         $("#modal [name='monto-solicitado']").on("change", ev=>{
             let $ele = $(ev.currentTarget);
@@ -545,7 +544,7 @@ class DashboardCreditosPersonales {
             let v = parseInt($ele.val()) || 0;
             let fechaPrimeraCuota = $("#modal [name='fecha-primer-vencimiento']").val();
             if(v && fechaPrimeraCuota){
-                let fx = new Date(fechaPrimeraCuota);
+                let fx = fechasTemporal.toString(fechaPrimeraCuota);
                 fx.setMonth(fx.getMonth() + v);
                 $("#modal [name='fecha-ultimo-vencimiento']").val(fechasTemporal.toString(fx, "usa"));
             }else{
@@ -605,9 +604,8 @@ class DashboardCreditosPersonales {
             let v = $ele.val();
             let cantidadCuotas = Number($("#modal [name='cantidad-cuotas']").val() || 0);
             if(v && cantidadCuotas){
-                let aux = new Date(v);
-                aux.setMonth(aux.getMonth() + cantidadCuotas);
-                $("#modal [name='fecha-ultimo-vencimiento']").val(fechasTemporal.toString(aux, "usa"));
+                let nuevoVencimiento = fechasTemporal.add(v, {months: cantidadCuotas});
+                $("#modal [name='fecha-ultimo-vencimiento']").val(fechasTemporal.toString(nuevoVencimiento, "usa"));
             }else{
                 $("#modal [name='fecha-ultimo-vencimiento']").val("");
             }
@@ -635,7 +633,7 @@ class DashboardCreditosPersonales {
             
             $ele.prop("disabled", true);
             let cuotas = [];
-            let fx = new Date(data.fechaPrimerVencimiento);
+            let fx = fechasTemporal.toString(data.fechaPrimerVencimiento);
             for(let i = 0; i < data.cantidadCuotas; i++){
                 let cuota = {};
                 cuota.numero = i + 1;
@@ -644,7 +642,7 @@ class DashboardCreditosPersonales {
                 cuota.punitorios = 0;
                 cuota.cobrado = false;
                 cuotas.push(cuota);
-                fx.setMonth(fx.getMonth() + 1);
+                fx = fechasTemporal.add(fx, {months: 1});
             }
             console.log(cuotas)
             try{
@@ -700,7 +698,7 @@ class DashboardCreditosPersonales {
 
         //$("#modal [name='numero-cuota']").val(cuota.numero);
         $("#modal [name='fecha-vencimiento']").val(fechasTemporal.toString(cuota.vencimiento, "usa"));
-        $("#modal [name='fecha-cobro']").val(fechasTemporal.toString(new Date(), "usa"));
+        $("#modal [name='fecha-cobro']").val(fechasTemporal.toString());
         $("#modal [name='caja']").html(utils.getOptions({ar: primordial.configuracion.cajas || []}));
         $("#modal [name='caja']").prepend(`<option value="" selected>Seleccionar</option>`);
         //$("#modal [name='monto']").val(cuota.monto);
@@ -710,7 +708,7 @@ class DashboardCreditosPersonales {
         let sumaCobros = cobros.reduce((acc, cobro) => acc + (cobro.montoCuota || 0), 0);
         let restante = cuota.monto - sumaCobros;
         $("#modal [name='monto']").val(restante);
-        let diasVencido = fechasTemporal.diffDays(new Date(), cuota.vencimiento);
+        let diasVencido = fechasTemporal.diffDays(fechasTemporal.now(), cuota.vencimiento);
         diasVencido = diasVencido < 0 ? Math.abs(diasVencido) : 0;
         $("#modal [name='dias-vencido']").val(diasVencido);
         $("#modal [name='monto-cuota']").val(cuota.monto);
@@ -784,27 +782,27 @@ class DashboardCreditosPersonales {
         //actualizo monto-punitorios al cargar el modal
         if(diasVencido > 0) $("#modal [name='punitorios']").trigger("change");
     }
-    modalListarCobros(cuota){
+    modalListarCobros(){
         modal.show({
-            title: `Cobros de la cuota ${cuota.numero}`,
+            title: `Listado cobros`,
             body: $("#modal-listar-cobros").html(),
-            size: "lg",
+            size: "xl",
             buttons: "back"
         });
 
-        let cobros = this.crud.element.cobros.filter(c => c.cuotaId === cuota._id && c.eliminado != true);
         let rows = "";
-        cobros.forEach(cobro => {
+        this.crud.element.cobros.forEach(cobro => {
+            let cuota = this.crud.element.cuotas.find(c => c._id === cobro.cuotaId);
             rows += `<tr>
+                <td>${cuota.numero}</td>
                 <td>${fechasTemporal.toString(cobro.fecha, "arg")}</td>
-                <td>${cobro.detalle || ""}</td>
-                <td>${cobro.caja || ""}</td>
+                <td>${cobro.detalle || "-"}</td>
+                <td>${cobro.caja || "-"}</td>
                 <td class="text-right">$${utils.formatNumber(cobro.montoCuota || 0)}</td>
                 <td class="text-right">$${utils.formatNumber(cobro.montoPunitorios || 0)}</td>
                 <td class="text-right">$${utils.formatNumber((cobro.montoCuota || 0) + (cobro.montoPunitorios || 0))}</td>
             </tr>`;
         });
-        console.log(rows);
         $("#modal tbody").html(rows);
     }
     modalEditarCuota(cuota){
@@ -848,5 +846,22 @@ class DashboardCreditosPersonales {
                 $ele.prop("disabled", false);
             }
         });
+    }
+    obtenerSaldoCuota(credito, cuota){
+        let cobros = credito.cobros.filter(c => c.cuotaId === cuota._id && c.eliminado != true);
+        let sumaCobros = cobros.reduce((acc, cobro) => acc + (cobro.montoCuota || 0), 0);
+        let restante = cuota?.monto - sumaCobros;
+        let punitorios = 0;
+        let diasVencido = fechasTemporal.diffDays(fechasTemporal.now(), cuota?.vencimiento);
+        if(diasVencido < 0){
+            diasVencido = Math.abs(diasVencido);
+            punitorios = diasVencido * Number(primordial.configuracion.punitorios) * restante;
+        }
+        return {
+            diasVencido,
+            montoPunitorios: punitorios,
+            restanteCuota: restante,
+            montoTotal: restante + punitorios
+        }
     }
 }
