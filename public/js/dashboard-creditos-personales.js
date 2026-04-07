@@ -2,6 +2,32 @@ class DashboardCreditosPersonales {
     constructor(initHTML=true){
         this.creditos = [];
         this.cuotas = [];
+
+        this.mensajesWhatsapp = {
+                cuotaPendiente: [
+                    "Hola ¿cómo estás?",
+                    "Te contactamos de ATN para informarte que registrás una cuota pendiente de pago.",
+                    "\n",
+                    "Cuando puedas, te pedimos que la regularices. Y si necesitás una mano o tenés alguna duda, podés escribirnos sin problema.",
+                    "\n",
+                    "Si ya pagaste, no hace falta que tengas en cuenta este mensaje.",
+                    "\n",
+                    "¡Gracias!",
+                    "\n",
+                    "EQUIPO ATN"
+                ],
+                proximoVencimiento: [
+                    "Hola ¿cómo estás?😊",
+                    "Te escribimos de ATN para avisarte que tu cuota está por vencer en los próximos días.\n\n",
+                    "\n",   
+                    "La idea es recordártelo con tiempo así podés organizarte tranquilo/a. No es necesario responder este mensaje. Si necesitás algún dato o ayuda, estamos a disposición.",
+                    "\n",   
+                    "¡Gracias por acompañarnos!",
+                    "EQUIPO ATN",
+                ]
+        };
+
+
         if(initHTML) this.initHTML();
     }
     async initHTML(){
@@ -30,12 +56,12 @@ class DashboardCreditosPersonales {
                         let span = "-";
                         let aux = (f?.cuotas || []).find(c=> !c.cobrado);
                         if(!aux) return span;
-                        let dif = fechas.diff_days(new Date(), aux?.vencimiento);
+                        let dif = fechasTemporal.diffDays(new Date(), aux?.vencimiento);
                         if(dif < 0) span = `<span class='badge badge-danger mr-1'>${dif}</span>`;
                         else if(dif === 0)  span = `<span class='badge badge-warning mr-1'>HOY</span>`;
                         else if(dif <= 5) span = `<span class='badge badge-warning mr-1'>${dif}</span>`;
                         else if(dif > 5) span = `<span class='badge badge-success mr-1'>${dif}</span>`;
-                        return `<small>${span} ${fechas.parse2(aux?.vencimiento, "ARG_FECHA")}</small>`;
+                        return `<small>${span} ${fechasTemporal.toString(aux?.vencimiento, "arg")}</small>`;
                     }
                 }
             ],
@@ -49,8 +75,9 @@ class DashboardCreditosPersonales {
                 $(`#finalidad [name="finalidad-tipo"]`).change();
 
                 $("#cuotas tbody").html("");
-                if(item.cuotas) this.listarCuotas(item.cuotas);
+                if(item.cuotas) this.listarCuotas();
 
+                console.log(item);
                 $("[crud='btModify']").click();
             },
             afterClear: () => {
@@ -72,7 +99,28 @@ class DashboardCreditosPersonales {
             },
             afterSearch: ()=>{
                 let listado = this.crud._search.ar;
-                //nada
+                $("#container-main-table tbody tr").each((ind, ele)=>{
+                    let $ele = $(ele);
+                    $ele.popover({
+                        trigger: "hover",
+                        html: true,
+                        placement: "top",
+                        container: "body",
+                        content: function(){
+                            let tr = $(this);
+                            let _id = tr.attr("idd");
+                            let credito = listado.find(c => c._id.toString() == _id.toString());
+                            let cuotas = (credito.cuotas || []).filter(c => c.eliminado != true);
+                            let cobros = (credito.cobros || []).filter(cobro => cobro.eliminado != true);
+                            let cuotasCobradas = cuotas.filter(c => c.cobrado == true);
+                            let fox = `
+                            Cuotas: ${cuotas.length}<br>
+                            Cobros: ${cobros.length}<br>
+                            Observaciones: ${credito.datosGenerales?.observaciones || "-"}`;
+                            return fox;
+                        }
+                    })
+                });
             }
         });
         this.crud.setTable($("#container-main-table"));
@@ -151,7 +199,7 @@ class DashboardCreditosPersonales {
                 }
             })
             Object.assign(this.crud.element, resp);
-            this.listarCuotas(this.crud.element.cuotas);
+            this.listarCuotas();
             menu.toast({level: "success", message: "Cuota guardada con éxito"});
         });
 
@@ -170,14 +218,25 @@ class DashboardCreditosPersonales {
             let aux = await modal.prompt({type:"text", label: "Número", value: num});
             if(!aux) return;
             if(aux.startsWith("549")) aux = aux.slice(3); //quito el 549 para evitar problemas con el formato internacional de whatsapp
-            let w = window.open(`https://wa.me/549${aux.replace(/\D/g, "")}`, "_blank");
+            
+            let mensaje = $(ev.currentTarget).attr("msj");
+            let msj = this.mensajesWhatsapp[mensaje].join("\n");
+
+            let w = window.open(`https://wa.me/549${aux.replace(/\D/g, "")}?text=${encodeURIComponent(msj)}`, "_blank");
         });
+
+        // oculto el menu
+        $("[data-widget='pushmenu']").click();
+        
+        //oculto la cortina
         menu.hideCortina();
     }
     async guardarDatosGenerales(){
         try{
             let data = {};
             let validos = [
+                "observaciones",
+
                 "datos-personales-apellidos",
                 "datos-personales-nombres",
                 "datos-personales-estado-civil",
@@ -229,8 +288,10 @@ class DashboardCreditosPersonales {
             let data = {};
             let validos = [
                 "finalidad-tipo",
+                "finalidad-fecha-compra",
                 "finalidad-detalle-general",
                 
+                "finalidad-vehiculo-tipo",
                 "finalidad-vehiculo-marca",
                 "finalidad-vehiculo-modelo",
                 "finalidad-vehiculo-anio",
@@ -274,31 +335,40 @@ class DashboardCreditosPersonales {
         } 
         return resp;
     }
-    listarCuotas(cuotas = []){
+    listarCuotas(){
         let rows = "";
         let punitorios = Number(primordial?.configuracion?.punitorios) || 0;
-        cuotas.forEach((c, i)=>{
-            if(c.eliminado) return;
-            let cobros = this.crud?.element?.cobros?.filter(cobro => cobro.cuotaId === c._id) || [];
-            let sumaCobros = cobros.reduce((acc, cobro) => acc + (cobro?.montoCuota || 0), 0);
+        this.crud.element.cuotas.forEach((c, i)=>{
+            if(c?.eliminado === true) return;
+            let cobros = this.crud?.element?.cobros?.filter(cobro => cobro.cuotaId === c._id && c.eliminado != true) || [];
+            let sumaCobros = cobros.reduce((acc, cobro) =>{
+                if(cobro?.eliminado != true) acc += cobro?.montoCuota || 0;
+                return acc;
+            }, 0);
             let labelDeuda = "";
+            let trColor = "";
             if(new Date(c.vencimiento) < new Date()){ //vencido
-                let diff = Math.abs(fechas.diff_days(new Date(), c.vencimiento));
+                let diff = Math.abs(fechasTemporal.diffDays(new Date(), c.vencimiento));
                 let restanteCuota = c.monto - sumaCobros;
-                let punitorio = (diff * punitorios * restanteCuota) / 100;
-                labelDeuda = "$" + utils.formatNumber(restanteCuota + punitorio);
+                let montoPunitorios = punitorios * diff * restanteCuota ;
+                labelDeuda = "$" + utils.formatNumber(restanteCuota + montoPunitorios);
+                trColor = "table-danger";
             }else{
-                if(c.cobrado) labelDeuda = "COBRADO";
+                if(c.cobrado){
+                    labelDeuda = "COBRADO";
+                    trColor = "table-success";
+                }
                 else labelDeuda = "$" + utils.formatNumber(c.monto);
             }
-            rows += `<tr cuota-id="${c?._id}">
+
+            rows += `<tr cuota-id="${c?._id}" class="${trColor}">
                 <td>
                     ${c.numero}
                 </td>
                 <td>
-                    ${fechas.parse2(c.vencimiento, "ARG_FECHA")}
+                    ${fechasTemporal.toString(c.vencimiento, "arg")}
                 </td>
-                <td>
+                <td name="deuda">
                     ${labelDeuda}
                 </td>
                 <td class='text-right'>
@@ -375,6 +445,7 @@ class DashboardCreditosPersonales {
             let tr = $(ev.currentTarget).closest("tr");
             let cuotaId = tr.attr("cuota-id");
             let cuota = this.crud.element.cuotas.find(c => c._id === cuotaId);
+            if(cuota.cobrado) return menu.toast({level: "warning", message: "Esta cuota ya se encuentra cobrada"});
             this.modalCobrarCuota(cuota);
         });
 
@@ -384,6 +455,42 @@ class DashboardCreditosPersonales {
             let cuota = this.crud.element.cuotas.find(c => c._id === cuotaId);
             this.modalListarCobros(cuota);
         });
+
+        $("#cuotas tbody [name='deuda']").popover({
+            content: function(ev){
+                let row = $(this).closest("tr");
+                let cuotaId = row.attr("cuota-id");
+                //notese q llamo a la clase por la instancia "creditosPersonales"
+                let cuota = creditosPersonales.crud.element.cuotas.find(c => c._id === cuotaId);
+
+                let cobros = creditosPersonales.crud?.element?.cobros?.filter(cobro => cobro.cuotaId === cuota._id && cobro.eliminado != true) || [];
+                let sumaCobros = cobros.reduce((acc, cobro) =>{
+                    if(cobro?.eliminado === true) acc += cobro?.montoCuota || 0;
+                    return acc;
+                }, 0);
+
+                let diasVencido = fechasTemporal.diffDays(new Date(), cuota.vencimiento);
+
+                let fox = "";
+                fox += `Monto: ${utils.formatNumber(cuota.monto)}<br>`;
+                if(sumaCobros) fox += `Cobrado: ${utils.formatNumber(sumaCobros)}<br>`;
+                if(diasVencido < 0){
+                    diasVencido = Math.abs(diasVencido);
+                    let aux = (diasVencido * Number(primordial.configuracion.punitorios) * (cuota.monto - sumaCobros));
+                    fox += `Punitorios: ${primordial.configuracion.punitorios}%<br>`;
+                    fox += `Días vencido: ${diasVencido}<br>`;
+                    fox += `<div class='text-info'>Monto punitorios: ${utils.formatNumber(aux)}</div>`;
+                    fox += `<small class='text-info'>(dias venc * punit * (Monto - Cobrado))</small><br>`;
+                    fox += `<div class='text-success'>Monto total: ${utils.formatNumber(aux + cuota.monto - sumaCobros)}</div>`;
+                    fox += `<small class='text-success'>punit + cuota - cobrado</small><br>`;
+                }
+
+
+                return fox
+            },
+            html: true,
+            trigger: "hover"
+        })
     }
     async generarCuotas(){
         if(!this.crud?.element?._id) return menu.toast({level: "warning", message: "Primero guarde los datos generales para luego generar las cuotas"});
@@ -396,7 +503,7 @@ class DashboardCreditosPersonales {
             buttons: "back"
         });
 
-        $("#modal [name='fecha-primer-vencimiento']").val(fechas.parse2(new Date(), "USA_FECHA"));
+        $("#modal [name='fecha-primer-vencimiento']").val(fechasTemporal.toString(new Date(), "usa"));
 
         $("#modal [name='monto-solicitado']").on("change", ev=>{
             let $ele = $(ev.currentTarget);
@@ -440,7 +547,7 @@ class DashboardCreditosPersonales {
             if(v && fechaPrimeraCuota){
                 let fx = new Date(fechaPrimeraCuota);
                 fx.setMonth(fx.getMonth() + v);
-                $("#modal [name='fecha-ultimo-vencimiento']").val(fechas.parse2(fx, "USA_FECHA"));
+                $("#modal [name='fecha-ultimo-vencimiento']").val(fechasTemporal.toString(fx, "usa"));
             }else{
                 $("#modal [name='fecha-ultimo-vencimiento']").val("");
             }
@@ -500,7 +607,7 @@ class DashboardCreditosPersonales {
             if(v && cantidadCuotas){
                 let aux = new Date(v);
                 aux.setMonth(aux.getMonth() + cantidadCuotas);
-                $("#modal [name='fecha-ultimo-vencimiento']").val(fechas.parse2(aux, "USA_FECHA"));
+                $("#modal [name='fecha-ultimo-vencimiento']").val(fechasTemporal.toString(aux, "usa"));
             }else{
                 $("#modal [name='fecha-ultimo-vencimiento']").val("");
             }
@@ -529,13 +636,12 @@ class DashboardCreditosPersonales {
             $ele.prop("disabled", true);
             let cuotas = [];
             let fx = new Date(data.fechaPrimerVencimiento);
-            fx.setHours(0,0,0,1); //para evitar q vuelva una fecha para atras
             for(let i = 0; i < data.cantidadCuotas; i++){
                 let cuota = {};
                 cuota.numero = i + 1;
-                cuota.vencimiento = new Date(fx);
+                cuota.vencimiento = fechasTemporal.toString(fx, "usa");
                 cuota.monto = data.montoCuota;
-                cuota.punitorio = 0;
+                cuota.punitorios = 0;
                 cuota.cobrado = false;
                 cuotas.push(cuota);
                 fx.setMonth(fx.getMonth() + 1);
@@ -552,7 +658,7 @@ class DashboardCreditosPersonales {
                 });
                 console.log(resp); 
                 Object.assign(this.crud.element, resp);
-                this.listarCuotas(resp.cuotas);
+                this.listarCuotas();
                 modal.hide();
             }catch(err){
                 console.log(err);
@@ -577,13 +683,14 @@ class DashboardCreditosPersonales {
             $("#modal [name='monto-cuota']").val(credito.generadorCuotas.montoCuota);
             $("#modal [name='monto-cuota']").parent().find("small").html("$" + utils.formatNumber(credito.generadorCuotas.montoCuota));
 
-            $("#modal [name='fecha-primer-vencimiento']").val(fechas.parse2(credito.generadorCuotas.fechaPrimerVencimiento, "USA_FECHA"));
-            $("#modal [name='fecha-ultimo-vencimiento']").val(fechas.parse2(credito.generadorCuotas.fechaUltimoVencimiento, "USA_FECHA"));   
+            $("#modal [name='fecha-primer-vencimiento']").val(fechasTemporal.toString(credito.generadorCuotas.fechaPrimerVencimiento, "usa"));
+            $("#modal [name='fecha-ultimo-vencimiento']").val(fechasTemporal.toString(credito.generadorCuotas.fechaUltimoVencimiento, "usa"));   
         }
         if(this.crud.element.cobros.length > 0) $("#modal .modal-body button, #modal .modal-body input").prop("disabled", true);
     }
     modalCobrarCuota(cuota){
-        console.log("cobrar cuota", cuota);
+        let cobros = this.crud.element.cobros.filter(c => c.cuotaId === cuota._id && c.eliminado != true);
+        console.log("cobrar cuota", cuota, cobros);
         modal.show({
             title: "Cobrar cuota",
             body: $("#modal-cobrar-cuota").html(),
@@ -592,50 +699,41 @@ class DashboardCreditosPersonales {
         });
 
         //$("#modal [name='numero-cuota']").val(cuota.numero);
-        $("#modal [name='fecha-vencimiento']").val(fechas.parse2(cuota.vencimiento, "USA_FECHA"));
-        $("#modal [name='fecha-cobro']").val(fechas.getNow(false));
+        $("#modal [name='fecha-vencimiento']").val(fechasTemporal.toString(cuota.vencimiento, "usa"));
+        $("#modal [name='fecha-cobro']").val(fechasTemporal.toString(new Date(), "usa"));
         $("#modal [name='caja']").html(utils.getOptions({ar: primordial.configuracion.cajas || []}));
+        $("#modal [name='caja']").prepend(`<option value="" selected>Seleccionar</option>`);
         //$("#modal [name='monto']").val(cuota.monto);
 
-        let cobros = this.crud.element.cobros.filter(c => c.cuotaId === cuota._id && c.eliminado != true);
-        if(cobros.length > 0){
-            let rows = "";
-            cobros.forEach(cobro => {
-                rows += `<tr>
-                    <td>${fechas.parse2(cobro.fecha, "ARG_FECHA_HORA")}</td>
-                    <td>${cobro.detalle || ""}</td>
-                    <td>${cobro.caja || ""}</td>
-                    <td class="text-right">$${utils.formatNumber(cobro.montoCuota || 0)}</td>
-                    <td class="text-right">$${utils.formatNumber(cobro.montoPunitorio || 0)}</td>
-                    <td class="text-right">$${utils.formatNumber((cobro.montoCuota || 0) + (cobro.montoPunitorio || 0))}</td>
-                </tr>`;
-            });
-            $("#modal #cobros tbody").html(rows).removeClass("d-none");
-        }
+
 
         let sumaCobros = cobros.reduce((acc, cobro) => acc + (cobro.montoCuota || 0), 0);
         let restante = cuota.monto - sumaCobros;
         $("#modal [name='monto']").val(restante);
-        let diasVencido = fechas.diff_days(new Date(), cuota.vencimiento);
+        let diasVencido = fechasTemporal.diffDays(new Date(), cuota.vencimiento);
         diasVencido = diasVencido < 0 ? Math.abs(diasVencido) : 0;
         $("#modal [name='dias-vencido']").val(diasVencido);
         $("#modal [name='monto-cuota']").val(cuota.monto);
-        $("#modal [name='cobrado']").val(cuota?.sumaCobros || 0);
+        $("#modal [name='cobrado']").val(sumaCobros || 0);
         $("#modal [name='restante']").val((cuota.monto - sumaCobros).toFixed(2));
 
         $("#modal [name='punitorios']").val(Number(primordial?.configuracion?.punitorios) || 0);
         $("#modal [name='punitorios']").on("change", ev=>{
             let $ele = $(ev.currentTarget);
             let v = Number($ele.val()) || 0;
-            let montoPunitorios = v * diasVencido * restante / 100;
+            let montoPunitorios = v * diasVencido * restante;
             $("#modal [name='monto-punitorios']").val(montoPunitorios.toFixed(2));
+            $("#modal [name='monto']").val((montoPunitorios + restante).toFixed(2));
         });
         $("#modal [name='monto-punitorios']").on("change", ev=>{
             let $ele = $(ev.currentTarget);
             let v = Number($ele.val()) || 0;
             let diasVencido = Number($("#modal [name='dias-vencido']").val()) || 0;
-            let punitorios = diasVencido > 0 ? (v * 100) / (restante * diasVencido) : 0;
-            $("#modal [name='punitorios']").val(punitorios.toFixed(2));
+            let punitorios = (diasVencido > 0 && restante > 0)
+                ? v / (diasVencido * restante)
+                : 0;
+            $("#modal [name='punitorios']").val(punitorios.toFixed(4));
+            $("#modal [name='monto']").val((v + restante).toFixed(2));
         });
 
 
@@ -643,17 +741,27 @@ class DashboardCreditosPersonales {
             $("#modal [name='monto']").val(restante);
         })
 
-        $("#modal [name='acreditar']").on("click", async ev=>{
+        $("#modal [name='cobrar']").on("click", async ev=>{
+            let montoCobro = Number($("#modal [name='monto']").val());  
+            let montoPunitorios = Number($("#modal [name='monto-punitorios']").val());
+            let montoRestante = Number($("#modal [name='restante']").val());
+
             let $ele = $(ev.currentTarget);
             let data = {
-                detalle: $("#modal [name='detalle']").val().trim(),
                 caja: $("#modal [name='caja']").val().trim(),
-                montoCobro: Number($("#modal [name='monto-cobro']").val().trim()),
-                montoPunitorios: Number($("#modal [name='monto-punitorios']").val().trim()),
-                diasVencidos: diasVencido,
+                fecha: $("#modal [name='fecha-cobro']").val(),
+                montoCuota: montoCobro - montoPunitorios,
+                montoPunitorios: montoPunitorios,
+                diasPunitorios: diasVencido,
+                punitorios: $("#modal [name='punitorios']").val(),
+                detalle: $("#modal [name='detalle']").val().trim(),
                 creditoId: this.crud.element._id,
-                cuotaId: cuota._id
+                cuotaId: cuota._id,
             }
+            if(!data.caja) return menu.toast({level: "warning", message: "Seleccione una caja"});
+            if(data.montoCuota <= 0) return menu.toast({level: "warning", message: "Ingrese un monto de cobro válido"});
+            if(!data.fecha) return menu.toast({level: "warning", message: "Ingrese una fecha de cobro válida"});
+
             $ele.prop("disabled", true);
             try{
                 let resp = await $.post({
@@ -661,7 +769,8 @@ class DashboardCreditosPersonales {
                     data: data
                 });
                 console.log(resp);
-                this.crud.element.cobros.push(resp);
+                Object.assign(this.crud.element, resp);
+                menu.toast({level: "success", message: "Cobro realizado con éxito"});
                 this.listarCuotas();
                 modal.hide();
             }catch(err){
@@ -683,18 +792,20 @@ class DashboardCreditosPersonales {
             buttons: "back"
         });
 
-        let cobros = this.crud.element.cobros.filter(c => c.cuotaId === cuota._id);
+        let cobros = this.crud.element.cobros.filter(c => c.cuotaId === cuota._id && c.eliminado != true);
         let rows = "";
         cobros.forEach(cobro => {
             rows += `<tr>
-                <td>${fechas.parse2(cobro.fecha, "ARG_FECHA_HORA")}</td>
+                <td>${fechasTemporal.toString(cobro.fecha, "arg")}</td>
                 <td>${cobro.detalle || ""}</td>
                 <td>${cobro.caja || ""}</td>
                 <td class="text-right">$${utils.formatNumber(cobro.montoCuota || 0)}</td>
-                <td class="text-right">$${utils.formatNumber(cobro.montoPunitorio || 0)}</td>
-                <td class="text-right">$${utils.formatNumber((cobro.montoCuota || 0) + (cobro.montoPunitorio || 0))}</td>
+                <td class="text-right">$${utils.formatNumber(cobro.montoPunitorios || 0)}</td>
+                <td class="text-right">$${utils.formatNumber((cobro.montoCuota || 0) + (cobro.montoPunitorios || 0))}</td>
             </tr>`;
         });
+        console.log(rows);
+        $("#modal tbody").html(rows);
     }
     modalEditarCuota(cuota){
         modal.show({
@@ -704,7 +815,7 @@ class DashboardCreditosPersonales {
             buttons: "back"
         })
         $("#modal [name='numero']").val(cuota.numero);
-        $("#modal [name='vencimiento']").val(fechas.parse2(cuota.vencimiento, "USA_FECHA"));
+        $("#modal [name='vencimiento']").val(fechasTemporal.toString(cuota.vencimiento, "usa"));
         $("#modal [name='monto']").val(cuota.monto);
         $("#modal [name='cobrado']").val(cuota.cobrado == true ? "true" : "false");
 
@@ -728,7 +839,7 @@ class DashboardCreditosPersonales {
                 });
                 console.log(resp);
                 Object.assign(this.crud.element, resp);
-                this.listarCuotas(this.crud.element.cuotas);
+                this.listarCuotas();
                 modal.hide();
             }catch(err){
                 console.log(err);

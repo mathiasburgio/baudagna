@@ -1,8 +1,9 @@
 {
     "cajas": [
         "efectivo",
-        "transferencia"
+        "transferencia",
+        "cheques"
     ],
-    "punitorios": "25",
+    "punitorios": "0.0033",
     "guardar": ""
 }

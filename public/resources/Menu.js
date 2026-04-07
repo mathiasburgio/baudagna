@@ -259,7 +259,7 @@ class Menu{
         if(sound) this.playSound(level);
     }
     setExpiration(serverTime=null, expirationDate=null){
-        let days = fechas.diff_days(serverTime, expirationDate);
+        let days = fechasTemporal.diffDays(serverTime, expirationDate);
         if(days <= 0){
             let fox = `<b>Suscripción vencida</b> renuevala hacienco clic en `;
             $("#expiration [name='text']").html(fox);

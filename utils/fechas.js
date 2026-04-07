@@ -16,8 +16,10 @@ class Fechas{
             ARRAY: 11,
             ARRAY_INT: 12
         };
-        this.DAY_OF_WEEK = ["Dom", "Lun", "Mar", "Mie", "Jue", "Vie", "Sab"];
+        this.DAY_OF_WEEK = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+        this.DAY_OF_WEEK_SHORT = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
         this.MONTH_NAME = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+        this.MONTH_NAME_SHORT = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
     }
     parse({val = undefined, formato = 9}){
        
@@ -57,19 +59,21 @@ class Fechas{
             }
         }else if(typeof val == "object"){//type Date
             //console.log(val);
-            ff.anio = val.getFullYear().toString();
-            ff.mes = (val.getMonth() + 1).toString();
-            ff.dia = val.getDate().toString();
-            ff.hora = val.getHours().toString();
-            ff.minuto = val.getMinutes().toString();
-            ff.segundo = val.getSeconds().toString();
-            ff.milisegundo = val.getMilliseconds().toString();
+            ff.anio = val.getUTCFullYear().toString();
+            ff.mes = (val.getUTCMonth() + 1).toString();
+            ff.dia = val.getUTCDate().toString();
+            ff.hora = val.getUTCHours().toString();
+            ff.minuto = val.getUTCMinutes().toString();
+            ff.segundo = val.getUTCSeconds().toString();
+            ff.milisegundo = val.getUTCMilliseconds().toString();
 
             if(ff.mes.length == 1){ ff.mes = "0" + ff.mes; }
             if(ff.dia.length == 1){ ff.dia = "0" + ff.dia; }
             if(ff.hora.length == 1){ ff.hora = "0" + ff.hora; }
             if(ff.minuto.length == 1){ ff.minuto = "0" + ff.minuto; }
-            if(ff.segundo.length == 1){ ff.segundo = "0" + ff.dia; }
+            if(ff.segundo.length == 1){ ff.segundo = "0" + ff.segundo; }
+            if(ff.milisegundo.length == 1){ ff.milisegundo = "00" + ff.milisegundo; }
+            if(ff.milisegundo.length == 2){ ff.milisegundo = "0" + ff.milisegundo; }
         }
         
         if(formato == this.FORMATO.ARG_FULL){

@@ -5,6 +5,7 @@ class DashboardUsuarios{
             "menu.creditos-personales",
             "accion.editar-credito",
             "menu.cajas",
+            "menu.usuarios",
             "accion.agregar-registro",
             "menu.configuracion",
         ];

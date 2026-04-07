@@ -16,29 +16,21 @@ const creditoPersonalSchema = new mongoose.Schema({
         type: Map,
         of: String
     },
-    prestamo: {
-        monto: Number,
-        intereses: Number,
-        cuotas: Number,
-        montoPorCuota: Number,
-        fechaInicio: Date,
-        fechaFin: Date,
-    },
     cobros: [{
         cuotaId: mongoose.Schema.Types.ObjectId,
-        fecha: Date,
+        fecha: String,
         detalle: String,
         caja: String,
         montoCuota: Number, //cuanto se pago de la cuota en este cobro
-        montoPunitorio: Number, // cuanto se pago de punitorio en este cobro
-        punitorio: Number,
-        punitorioDiasVencidos: Number, //dias vencidos al momento del cobro
+        montoPunitorios: Number, // cuanto se pago de punitorio en este cobro
+        punitorios: Number,
+        diasPunitorios: Number, //dias vencidos al momento del cobro
         eliminado: Boolean,
     }],
     cuotas: [{
         numero: Number,
         monto: Number,
-        vencimiento: Date,
+        vencimiento: String,
         cobrado: Boolean,
         eliminado: Boolean,
     }],
@@ -48,8 +40,8 @@ const creditoPersonalSchema = new mongoose.Schema({
         intereses: Number,
         montoTotal: Number,
         montoCuota: Number,
-        fechaPrimerVencimiento: Date,
-        fechaUltimoVencimiento: Date,
+        fechaPrimerVencimiento: String,
+        fechaUltimoVencimiento: String,
     },
     eliminado: Boolean,
     cerrado: Boolean,

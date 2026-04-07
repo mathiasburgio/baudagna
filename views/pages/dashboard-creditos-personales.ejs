@@ -24,7 +24,8 @@
 
                             <div class="dropdown-menu">
                                 <a class="dropdown-item" name="cobrar" href="#">Cobrar</a>
-                                <a class="dropdown-item" name="whatsapp" href="#">WhatsApp</a>
+                                <a class="dropdown-item" name="whatsapp" msj="cuotaPendiente" href="#">WhatsApp (cuota pendiente)</a>
+                                <a class="dropdown-item" name="whatsapp" msj="proximoVencimiento" href="#">WhatsApp (próximo vencimiento)</a>
                             </div>
                         </div>
                     </div>
@@ -66,6 +67,10 @@
                 <!--NOTA: LOS CAMPOS SON TIPO SEARCH PARA QUE GOOGLE NO INTENTE GUARDARLOS COMO PERSONALES-->
                 <div class="tab-content">
                     <div class="tab-pane fade active show" id="datos-generales" role="tabpanel" aria-labelledby="tab-datos-generales">
+                        <div class="title mt-0">Observaciones</div>
+                        <div class="form-group">
+                            <textarea name="observaciones" class="form-control form-control-sm" rows="3"></textarea>
+                        </div>
                         <div class="title mt-0">Datos personales</div>
                         <div class="row">
                             <div class="col">
@@ -229,6 +234,16 @@
                         </div>
                         <div finalidad-tipo="vehiculo" class="d-none">
                             <div class="row">
+                                <div class="form-group col-12">
+                                    <label for="">Tipo de vehículo</label>
+                                    <select name="finalidad-vehiculo-tipo" class="form-control form-control-sm" autocomplete="off">
+                                        <option value="Auto">Auto</option>
+                                        <option value="Camioneta">Camioneta</option>
+                                        <option value="Moto">Moto</option>
+                                        <option value="Cuatriciclo">Cuatriciclo</option>
+                                        <option value="Moto de agua">Moto de agua</option>
+                                    </select>   
+                                </div>
                                 <div class="form-group col-6">
                                     <label for="">Marca</label>
                                     <input type="text" name="finalidad-vehiculo-marca" class="form-control form-control-sm" autocomplete="off">
@@ -273,6 +288,10 @@
                             </div>
                         </div>
                         <div finalidad-tipo="general">
+                            <div class="form-group">
+                                <label for="">Fecha de compra</label>
+                                <input type="date" name="finalidad-fecha-compra" class="form-control">
+                            </div>
                             <div class="form-group">
                                 <label for="">Detalle general</label>
                                 <textarea name="finalidad-detalle-general" class="form-control"></textarea>
@@ -418,6 +437,11 @@
                         </div>
                     </div>
                 </div>
+                <div class="alert alert-info">
+                    <small>
+                        *El monto a cobrar se acreditará 1ro como pago de punitorios y lo que reste como pago de cuota.
+                    </small>
+                </div>
             </div>
             <div class="col">
                 <div class="row">
@@ -452,6 +476,10 @@
                             <select name="caja" class="form-control"></select>
                         </div>
                     </div>
+                </div>
+                <div class="form-group">
+                    <label for="">Detalle</label>
+                    <textarea class="form-control" name="detalle"></textarea>
                 </div>
                 <div class="text-right">
                     <button class="btn btn-flat btn-primary" name="cobrar">Cobrar</button>

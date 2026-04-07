@@ -85,7 +85,7 @@ async function eliminarCreditoPersonal(req, res){
 async function generarCuotas(req, res){
     try{
         let {creditoId, cuotas, generadorCuotas} = req.body;
-        let credito = await CreditoPersonal.findOne({_id: creditoId});
+        let credito = await CreditoPersonal.findOne({ _id: creditoId });
         if(!credito) throw "Crédito no encontrado";
         if(credito.cobros.length > 0) throw "No se pueden generar cuotas para un crédito con cobros registrados";
         
@@ -126,6 +126,7 @@ async function eliminarCuota(req, res){
         if(credito.cobros.find(c=>c.cuotaId.toString() == cuotaId)) throw "No se pueden eliminar una cuota ya cobrada";
         let cuota = credito.cuotas.find(c => c._id.toString() == cuotaId);
         if(!cuota) throw "Cuota no encontrada";
+        if(cuota.cobrado) throw "No se pueden eliminar una cuota ya cobrada";
         cuota.eliminado = true;
         await credito.save();
         res.status(200).json(credito);
@@ -135,6 +136,61 @@ async function eliminarCuota(req, res){
     }
 }
 //COBROS
+async function acreditarCobro(req, res){
+    try{
+        let {creditoId, cuotaId, fecha, montoCuota, punitorios, diasPunitorios, montoPunitorios, caja, detalle} = req.body;
+        let credito = await CreditoPersonal.findOne({_id: creditoId});
+        if(!credito) throw "Crédito no encontrado";
+        let cuota = credito.cuotas.find(c => c._id.toString() == cuotaId);
+        if(!cuota) throw "Cuota no encontrada";
+        if(cuota.eliminado) throw "No se pueden cobrar una cuota eliminada";
+        if(cuota.cobrado) throw "Cuota ya cobrada";
+
+        //console.log(req.body);
+        credito.cobros.push({
+            cuotaId: cuota._id,
+            fecha: fecha,
+            montoCuota: montoCuota,
+            punitorios: punitorios,
+            diasPunitorios: diasPunitorios,
+            montoPunitorios: montoPunitorios,
+            caja: caja,
+            detalle: detalle,
+            eliminado: false
+        });
+        await credito.save();
+
+        let sumaCobros = credito.cobros.reduce((acc, cobro) =>{
+            if(cobro.cuotaId.toString() == cuotaId && cobro.eliminado != true) acc += cobro.montoCuota || 0;
+            return acc;
+        }, 0);
+        
+        if(sumaCobros >= cuota.monto){
+            cuota.cobrado = true;
+            await credito.save();
+        }
+
+        res.status(200).json(credito);
+    }catch(e){
+        console.error(e);
+        res.status(500).end(e.toString());
+    }
+}
+async function eliminarCobro(req, res){
+    try{
+        let {creditoId, cobroId} = req.body;
+        let credito = await CreditoPersonal.findOne({_id: creditoId});
+        if(!credito) throw "Crédito no encontrado";
+        let cobro = credito.cobros.find(c => c._id.toString() == cobroId);
+        if(!cobro) throw "Cobro no encontrado";
+        cobro.eliminado = true;
+        await credito.save();
+        res.status(200).json(credito);
+    }catch(e){
+        console.error(e);
+        res.status(500).end(e.toString());
+    }   
+}
 
 module.exports = {
     vista,
@@ -146,4 +202,7 @@ module.exports = {
     generarCuotas,
     upsertCuota,
     eliminarCuota,
+
+    acreditarCobro,
+    eliminarCobro
 }

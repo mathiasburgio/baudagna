@@ -34,6 +34,7 @@
     "node-7z": "^3.0.0",
     "node-cron": "^4.2.1",
     "redis": "^5.11.0",
-    "serve-favicon": "^2.5.1"
+    "serve-favicon": "^2.5.1",
+    "temporal-polyfill": "^0.3.2"
   }
 }

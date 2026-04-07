@@ -10,7 +10,9 @@
 <!-- <script src="/resources/cdn/jsBarcode.all.min.js"></script> makerIO no aplica-->
 <script src="/resources/cdn/qrcode.min.js"></script>
 
-<script src="/resources/Fechas.js"></script>
+<!-- <script src='https://cdn.jsdelivr.net/npm/temporal-polyfill@0.3.0/global.min.js'></script> -->
+
+<script src="/resources/FechasTemporal.js"></script>
 <script src="/resources/Modal2.js"></script>
 <script src="/resources/Utils.js"></script>
 <script src="/resources/DropdownSearcher.js"></script>
@@ -30,7 +32,7 @@
     const driver = window.driver.js.driver;
     async function boilerplate(loadPrimordial=true){
         const driverObj = driver();
-        fechas = new Fechas();
+        fechasTemporal = new FechasTemporal();
         modal = new Modal();
         utils = new Utils();
         menu = new Menu();

@@ -35,4 +35,13 @@ router.post("/dashboard/creditos-personales/eliminar-cuota",
     middlewares.verificarPermisos({level: 1, responseType: "json"}),
     creditosPersonalesController.eliminarCuota);
 
+router.post("/dashboard/creditos-personales/acreditar-cobro",
+    middlewares.verificarPermisos({level: 1, responseType: "json"}),
+    creditosPersonalesController.acreditarCobro);
+
+router.post("/dashboard/creditos-personales/eliminar-cobro",
+    middlewares.verificarPermisos({level: 1, responseType: "json"}),
+    creditosPersonalesController.eliminarCobro);
+
+
 module.exports = router;

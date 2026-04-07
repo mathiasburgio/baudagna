@@ -1,6 +1,5 @@
 const Usuario = require("../models/usuario-model.js");
 const utils = require("../utils/utils.js");
-const fechas = require("../utils/fechas.js");
 
 async function vista(req, res){
     res.status(200).render( "../views/layouts/dashboard.ejs", { title: "Usuarios", page: "../pages/dashboard-usuarios.ejs" });

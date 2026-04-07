@@ -57,19 +57,21 @@ class Fechas{
             }
         }else if(typeof val == "object"){//type Date
             //console.log(val);
-            ff.anio = val.getFullYear().toString();
-            ff.mes = (val.getMonth() + 1).toString();
-            ff.dia = val.getDate().toString();
-            ff.hora = val.getHours().toString();
-            ff.minuto = val.getMinutes().toString();
-            ff.segundo = val.getSeconds().toString();
-            ff.milisegundo = val.getMilliseconds().toString();
+            ff.anio = val.getUTCFullYear().toString();
+            ff.mes = (val.getUTCMonth() + 1).toString();
+            ff.dia = val.getUTCDate().toString();
+            ff.hora = val.getUTCHours().toString();
+            ff.minuto = val.getUTCMinutes().toString();
+            ff.segundo = val.getUTCSeconds().toString();
+            ff.milisegundo = val.getUTCMilliseconds().toString();
 
             if(ff.mes.length == 1){ ff.mes = "0" + ff.mes; }
             if(ff.dia.length == 1){ ff.dia = "0" + ff.dia; }
             if(ff.hora.length == 1){ ff.hora = "0" + ff.hora; }
             if(ff.minuto.length == 1){ ff.minuto = "0" + ff.minuto; }
-            if(ff.segundo.length == 1){ ff.segundo = "0" + ff.dia; }
+            if(ff.segundo.length == 1){ ff.segundo = "0" + ff.segundo; }
+            if(ff.milisegundo.length == 1){ ff.milisegundo = "00" + ff.milisegundo; }
+            if(ff.milisegundo.length == 2){ ff.milisegundo = "0" + ff.milisegundo; }
         }
         
         if(formato == this.FORMATO.ARG_FULL){
@@ -154,7 +156,7 @@ class Fechas{
         return dias;
     }
     days_in_month(year, month){
-        return new Date(year, month, 0).getDate();
+        return new Date(year, month, 0).getUTCDate();
     }
     parse2(v = "", str = "USA_FULL"){
         if(!v){v = new Date();}
@@ -162,7 +164,7 @@ class Fechas{
     }
     lastDayOfMonth(anio, mes){
         let d = new Date(anio, mes + 1, 0);
-        return d.getDate();
+        return d.getUTCDate();
     }
     getAhora(hora = true){
         if(hora){
@@ -177,6 +179,16 @@ class Fechas{
         }else{
             return this.parse({val: new Date(), formato: this.FORMATO.USA_FECHA});
         }
+    }
+    getLastDayOfMonth(yearMonth, length2=true){
+        if(yearMonth.split("-").length == 2) yearMonth = yearMonth + "-01" //viene en formato "YYYY-MM"
+            
+        let aux = this.parse2(yearMonth, "USA_FECHA_HORA");
+        let anio = parseInt(aux.split("-")[0]);
+        let mes = parseInt(aux.split("-")[1]);
+        let ret = new Date(anio, mes + 1, 0).getDate();
+        if(length2) if(ret.toString().length == 1) ret = "0" + ret.toString();
+        return ret.toString();
     }
     getWeekNumber(date) {
         // Clonamos la fecha para no modificar la original
