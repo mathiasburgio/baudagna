@@ -1,5 +1,8 @@
 const CreditoPersonal = require("../models/credito-personal-model");
+const Recibo = require("../models/recibo-model");
 const utils = require("../utils/utils");
+const {FechasTemporal} = require("../utils/FechasTemporal");
+
 async function vista(req, res){
     res.status(200).render( 
         "../views/layouts/dashboard.ejs", 
@@ -10,8 +13,34 @@ async function listarCreditosPersonales(req, res){
     try{
         let pagina = parseInt(req.query.pagina) || 1;
         let limite = parseInt(req.query.limite) || 100;
+        let filtro = req.query.filtro || "Todos";
+        let orden = req.query.orden || "Mas reciente";
 
-        let creditos = await CreditoPersonal.find({eliminado: false})
+        let query = {eliminado: false};
+        if(filtro == "Activos" || orden == "Próximo vencimiento"){ 
+            //cuota cobrado = false and eliminado != true
+            query["cuotas"] = {$elemMatch: {eliminado: {$ne: true}, cobrado:  {$ne: true}}};
+        }
+        if(filtro == "roque-perez@motos"){
+            query["finalidad.finalidad-tipo"] = "Vehiculo";
+            query["finalidad.finalidad-vehiculo-tipo"] = "Moto";
+            query["datosGenerales.localidad"] = "Roque Pérez";
+        }else if(filtro == "roque-perez@autos"){
+            query["finalidad.finalidad-tipo"] = "Vehiculo";
+            query["finalidad.finalidad-vehiculo-tipo"] = "Auto";
+            query["datosGenerales.localidad"] = "Roque Pérez";
+        }else if(filtro == "navarro@motos"){
+            query["finalidad.finalidad-tipo"] = "Vehiculo";
+            query["finalidad.finalidad-vehiculo-tipo"] = "Moto";
+            query["datosGenerales.localidad"] = "Navarro";
+        }else if(filtro == "navarro@autos"){
+            query["finalidad.finalidad-tipo"] = "Vehiculo";
+            query["finalidad.finalidad-vehiculo-tipo"] = "Auto";
+            query["datosGenerales.localidad"] = "Navarro";
+        }
+        
+        let creditos = await CreditoPersonal.find(query)
+        .sort(orden == "Mas reciente" ? {createdAt: -1} : orden == "Alfabético" ? {"datosGenerales.nombre": 1} : {proximoVencimiento: 1})
         .limit(limite)
         .skip((pagina - 1) * limite)
         .lean();
@@ -91,6 +120,7 @@ async function generarCuotas(req, res){
         
         credito.cuotas = cuotas;//las cuotas ya generadas en front
         credito.generadorCuotas = generadorCuotas; //el objeto completo
+        credito.proximoVencimiento = cuotas[0] ? cuotas[0].vencimiento : null;
         await credito.save();
         res.status(200).json(credito);
     }catch(e){
@@ -111,7 +141,11 @@ async function upsertCuota(req, res){
         }else{//nueva
             credito.cuotas.push(cuota);
         }
+        
+        let proximaCuota = credito.cuotas.find(c=>c?.eliminado != true && c.cobrado != true);
+        credito.proximoVencimiento = proximaCuota ? proximaCuota.vencimiento : null;
         await credito.save();
+
         res.status(200).json(credito);
     }catch(e){ 
         console.error(e);
@@ -129,6 +163,11 @@ async function eliminarCuota(req, res){
         if(cuota.cobrado) throw "No se pueden eliminar una cuota ya cobrada";
         cuota.eliminado = true;
         await credito.save();
+
+        let proximaCuota = credito.cuotas.find(c=>c?.eliminado != true && c.cobrado != true);
+        credito.proximoVencimiento = proximaCuota ? proximaCuota.vencimiento : null;
+        await credito.save();
+
         res.status(200).json(credito);
     }catch(e){
         console.error(e);
@@ -160,15 +199,22 @@ async function acreditarCobro(req, res){
         });
         await credito.save();
 
+        //sumo cobros para la cuota
         let sumaCobros = credito.cobros.reduce((acc, cobro) =>{
             if(cobro.cuotaId.toString() == cuotaId && cobro.eliminado != true) acc += cobro.montoCuota || 0;
             return acc;
         }, 0);
         
+        //verifico si esta 100% paga
         if(sumaCobros >= cuota.monto){
             cuota.cobrado = true;
             await credito.save();
         }
+
+        //grabo proximo vencimiento
+        let proximaCuota = credito.cuotas.find(c=>c?.eliminado != true && c.cobrado != true);
+        credito.proximoVencimiento = proximaCuota ? proximaCuota.vencimiento : null;
+        await credito.save();
 
         res.status(200).json(credito);
     }catch(e){
@@ -184,12 +230,64 @@ async function eliminarCobro(req, res){
         let cobro = credito.cobros.find(c => c._id.toString() == cobroId);
         if(!cobro) throw "Cobro no encontrado";
         cobro.eliminado = true;
+
+        let proximaCuota = credito.cuotas.find(c=>c?.eliminado != true && c.cobrado != true);
+        credito.proximoVencimiento = proximaCuota ? proximaCuota.vencimiento : null;
+
         await credito.save();
         res.status(200).json(credito);
     }catch(e){
         console.error(e);
         res.status(500).end(e.toString());
     }   
+}
+
+//RECIBO
+async function generarRecibo(req, res){
+    try{
+        let {creditoId, cuotaId, cobroId} = req.body;
+        let credito = await CreditoPersonal.findOne({_id: creditoId});
+        if(!credito) throw "Crédito no encontrado";
+        let cuota = credito.cuotas.find(c => c._id.toString() == cuotaId);
+        if(!cuota) throw "Cuota no encontrada";
+        let cobro = credito.cobros.find(c => c._id.toString() == cobroId);
+        if(!cobro) throw "Cobro no encontrado";
+
+        let existe = await Recibo.findOne({creditoId, cuotaId, cobroId});
+        if(existe) return res.status(200).json(existe);
+
+        let recibo = await Recibo.create({
+            numero: await req.setContador("recibo", "incr"),
+            creditoId: credito._id,
+            cuotaId: cuota._id,
+            cobroId: cobro._id,
+            fecha: FechasTemporal.toString().split("T")[0],
+        });
+        res.status(200).json(recibo);
+    }catch(e){
+        console.error(e);
+        res.status(500).end(e.toString());
+    }
+}
+async function obtenerRecibo(req, res){
+    try{
+        let {reciboId, creditoId, cobroId} = req.query;
+        let recibo = null;
+        let credito = null;
+
+        if(reciboId) recibo = await Recibo.findOne({_id: reciboId}).lean();
+        else if(creditoId && cobroId) recibo = await Recibo.findOne({creditoId, cobroId}).lean();
+        
+        if(!recibo) throw "Recibo no encontrado";
+        
+        credito = await CreditoPersonal.findOne({_id: recibo.creditoId}).lean();
+        if(!credito) throw "Crédito no encontrado";
+
+        res.status(200).json({recibo, credito});
+    }catch(e){
+        console.error(e);
+        res.status(500).end(e.toString());
+    }
 }
 
 module.exports = {
@@ -204,5 +302,8 @@ module.exports = {
     eliminarCuota,
 
     acreditarCobro,
-    eliminarCobro
+    eliminarCobro,
+
+    generarRecibo,
+    obtenerRecibo
 }

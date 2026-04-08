@@ -43,5 +43,13 @@ router.post("/dashboard/creditos-personales/eliminar-cobro",
     middlewares.verificarPermisos({level: 1, responseType: "json"}),
     creditosPersonalesController.eliminarCobro);
 
+router.post("/dashboard/creditos-personales/generar-recibo",
+    middlewares.verificarPermisos({level: 1, responseType: "json"}),
+    creditosPersonalesController.generarRecibo);
+
+router.get("/dashboard/creditos-personales/obtener-recibo",
+    middlewares.verificarPermisos({level: 1, responseType: "json"}),
+    creditosPersonalesController.obtenerRecibo);
+
 
 module.exports = router;

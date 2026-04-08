@@ -23,15 +23,12 @@
 <script src="/resources/SimpleCRUD.js"></script>
 <script src="/resources/TableSelector.js"></script>
 
-<script src="https://cdn.jsdelivr.net/npm/driver.js@latest/dist/driver.js.iife.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/dexie/4.2.0/dexie.min.js" integrity="sha512-LuXLH9xON6/aAGYxi4Z1Dx8588Z80gY3iMmGtUlYmblUc1ulC/cGHuANXIvm8fnIWp5ShUk2MRBIWylGguXF9g==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
 <script>
     var fechas, modal, utils, menu, superExcel, impresor, primordial;
     var localDB = null;
-    const driver = window.driver.js.driver;
     async function boilerplate(loadPrimordial=true){
-        const driverObj = driver();
         fechasTemporal = new FechasTemporal();
         modal = new Modal();
         utils = new Utils();

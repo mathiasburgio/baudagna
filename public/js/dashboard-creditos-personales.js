@@ -1,7 +1,11 @@
 class DashboardCreditosPersonales {
     constructor(initHTML=true){
         this.creditos = [];
-        this.cuotas = [];
+        this.busqueda = {
+            filtro: "Todos",
+            orden: "Mas reciente",
+            pagina: 0
+        };
 
         this.mensajesWhatsapp = {
                 cuotaPendiente: [
@@ -57,10 +61,10 @@ class DashboardCreditosPersonales {
                         let cuota = (f?.cuotas || []).find(c=> !c.cobrado);
                         let aux = this.obtenerSaldoCuota(f, cuota);
                         let span = "-";
-                        if(aux.diasVencido > 0) span = `<span class='badge badge-danger mr-1'>${aux.diasVencido}</span>`;
+                        if(aux.diasVencido < 0) span = `<span class='badge badge-danger mr-1'>${aux.diasVencido}</span>`;
                         else if(aux.diasVencido === 0)  span = `<span class='badge badge-warning mr-1'>HOY</span>`;
-                        else if(aux.diasVencido < 0 && aux.diasVencido >= -5) span = `<span class='badge badge-warning mr-1'>${Math.abs(aux.diasVencido)}</span>`;
-                        else if(aux.diasVencido < -5) span = `<span class='badge badge-success mr-1'>${Math.abs(aux.diasVencido)}</span>`;
+                        else if(aux.diasVencido > 0 && aux.diasVencido <= 5) span = `<span class='badge badge-warning mr-1'>${Math.abs(aux.diasVencido)}</span>`;
+                        else if(aux.diasVencido > 5) span = `<span class='badge badge-success mr-1'>${Math.abs(aux.diasVencido)}</span>`;
                         return `<small>${span} ${fechasTemporal.toString(cuota?.vencimiento, "arg")}</small>`;
                     }
                 }
@@ -158,6 +162,38 @@ class DashboardCreditosPersonales {
             this.crud.search(ev.currentTarget.value);
         });
 
+        $("[name='filtrar']").on("click", async ev=>{
+            let ele = $(ev.currentTarget);
+            let aux = await modal.promptSelect({
+                title: "Filtrar por",
+                ar: ["Todos", "Activos", "roque-perez@motos", "roque-perez@autos", "navarro@motos", "navarro@autos"],
+            });
+            if(!aux) return;
+            this.busqueda.filtro = aux;
+            this.busqueda.pagina = 0;
+            ele.html("Mostrar: " + aux);
+            if(aux != "Todos") ele.addClass("badge-warning").removeClass("badge-light");
+            else ele.addClass("badge-light").removeClass("badge-warning");
+            this.obtenerCreditos();
+        })
+        $("[name='ordenar']").on("click", async ev=>{
+            let ele = $(ev.currentTarget);
+            let aux = await modal.promptSelect({
+                title: "Ordenar por",
+                ar: ["Mas reciente", "Alfabético", "Próximo vencimiento"],
+            });
+            if(!aux) return;
+            this.busqueda.orden = aux;
+            this.busqueda.pagina = 0;
+            ele.html("Ordenar: " + aux);
+            if(aux != "Mas reciente") ele.addClass("badge-warning").removeClass("badge-light");
+            else ele.addClass("badge-light").removeClass("badge-warning");
+            this.obtenerCreditos();
+        })
+
+        $("[name='direccion-localidad']").html(utils.getOptions({ar: primordial.configuracion.localidades}));
+        $("[name='direccion-provincia']").html(utils.getOptions({ar: primordial.configuracion.Provincias}));
+    
         //datos generales
         $("#datos-generales [name='guardar']").on("click", ()=> this.guardarDatosGenerales() );
 
@@ -332,10 +368,15 @@ class DashboardCreditosPersonales {
         }
     }
     async obtenerCreditos(){
-        let resp = await $.get("/dashboard/creditos-personales/listar");
+        let resp = await $.get("/dashboard/creditos-personales/listar?filtro=" + this.busqueda.filtro + "&orden=" + this.busqueda.orden + "&pagina=" + this.busqueda.pagina);
+        this.busqueda.pagina++;
         this.creditos = resp;
         $("[crud='txSearch']").val("");
         if(this.crud){
+            this.crud.clearFields();
+            $("#cuotas tbody").html("");
+            this.crud.element = null;
+
             this.crud.list = this.creditos;
             this.crud.search("");
         } 
@@ -545,8 +586,8 @@ class DashboardCreditosPersonales {
             let fechaPrimeraCuota = $("#modal [name='fecha-primer-vencimiento']").val();
             if(v && fechaPrimeraCuota){
                 let fx = fechasTemporal.toString(fechaPrimeraCuota);
-                fx.setMonth(fx.getMonth() + v);
-                $("#modal [name='fecha-ultimo-vencimiento']").val(fechasTemporal.toString(fx, "usa"));
+                let vencimientoUltimaCuota = fechasTemporal.add(fx, {months: v});
+                $("#modal [name='fecha-ultimo-vencimiento']").val(fechasTemporal.toString(vencimientoUltimaCuota).split("T")[0]);
             }else{
                 $("#modal [name='fecha-ultimo-vencimiento']").val("");
             }
@@ -639,8 +680,12 @@ class DashboardCreditosPersonales {
                 cuota.numero = i + 1;
                 cuota.vencimiento = fechasTemporal.toString(fx, "usa");
                 cuota.monto = data.montoCuota;
+                cuota.montoCapital = Number((data.montoSolicitado / data.cantidadCuotas).toFixed(2));
+                cuota.montoInteres = Number((cuota.monto - cuota.montoCapital).toFixed(2));
+                cuota.tasaInteres = data.intereses;
                 cuota.punitorios = 0;
                 cuota.cobrado = false;
+                cuota.intereses = data.intereses;
                 cuotas.push(cuota);
                 fx = fechasTemporal.add(fx, {months: 1});
             }
@@ -793,17 +838,51 @@ class DashboardCreditosPersonales {
         let rows = "";
         this.crud.element.cobros.forEach(cobro => {
             let cuota = this.crud.element.cuotas.find(c => c._id === cobro.cuotaId);
-            rows += `<tr>
+            rows += `<tr credito-id="${this.crud.element._id}" cuota-id="${cobro.cuotaId}" cobro-id="${cobro._id}">
                 <td>${cuota.numero}</td>
                 <td>${fechasTemporal.toString(cobro.fecha, "arg")}</td>
                 <td>${cobro.detalle || "-"}</td>
                 <td>${cobro.caja || "-"}</td>
                 <td class="text-right">$${utils.formatNumber(cobro.montoCuota || 0)}</td>
                 <td class="text-right">$${utils.formatNumber(cobro.montoPunitorios || 0)}</td>
-                <td class="text-right">$${utils.formatNumber((cobro.montoCuota || 0) + (cobro.montoPunitorios || 0))}</td>
+                <td class="text-right font-weight-bold">$${utils.formatNumber((cobro.montoCuota || 0) + (cobro.montoPunitorios || 0))}</td>
+                <td class="text-right">
+                    <button class="btn btn-sm btn-warning" name="imprimir-cobro"><i class="fas fa-print"></i></button>
+                    <button class="btn btn-sm btn-danger" name="eliminar-cobro"><i class="fas fa-trash"></i></button>
+                </td>
             </tr>`;
         });
         $("#modal tbody").html(rows);
+        $("#modal [name='imprimir-cobro']").on("click", async ev=>{
+            let $btn = $(ev.currentTarget);
+            let creditoId = $btn.closest("tr").attr("credito-id");
+            let cobroId = $btn.closest("tr").attr("cobro-id");
+            let cuotaId = $btn.closest("tr").attr("cuota-id");
+            let r = await $.post({
+                url: "/dashboard/creditos-personales/generar-recibo",
+                data: { creditoId, cobroId, cuotaId }
+            });
+            let w = window.open("/html/recibo.html?cobroId=" + cobroId + "&creditoId=" + creditoId + "&cuotaId=" + cuotaId, "_blank");
+        });
+        $("#modal [name='eliminar-cobro']").on("click", async ev=>{
+            let $btn = $(ev.currentTarget);
+            let creditoId = $btn.closest("tr").attr("credito-id");
+            let cobroId = $btn.closest("tr").attr("cobro-id");
+            let confirm = await modal.addPopover({querySelector: $btn, type: "yesno", message: "¿Confirma eliminar este cobro?"});
+            if(!confirm) return;
+            try{
+                let resp = await $.post({
+                    url: "/dashboard/creditos-personales/eliminar-cobro",
+                    data: { creditoId, cobroId }
+                });
+                Object.assign(this.crud.element, resp);
+                this.listarCuotas();
+                modal.hide();
+            }catch(err){
+                console.log(err);
+                menu.toast({level: "danger", message: err?.responseText || "Error al eliminar el cobro"});
+            }
+        });
     }
     modalEditarCuota(cuota){
         modal.show({
@@ -816,6 +895,30 @@ class DashboardCreditosPersonales {
         $("#modal [name='vencimiento']").val(fechasTemporal.toString(cuota.vencimiento, "usa"));
         $("#modal [name='monto']").val(cuota.monto);
         $("#modal [name='cobrado']").val(cuota.cobrado == true ? "true" : "false");
+    
+        //let { capital, interes } = this.obtenerCapitalInteresCuota(cuota);
+        $("#modal [name='montoCapital']").val(cuota.montoCapital);
+        $("#modal [name='montoInteres']").val(cuota.montoInteres);
+        $("#modal [name='tasaInteres']").val(cuota.tasaInteres);
+        
+        $("#modal [name='montoCapital'], #modal [name='montoInteres']").on("change", ev=>{
+            let montoCapital = Number($("#modal [name='montoCapital']").val()) || 0;
+            let montoInteres = Number($("#modal [name='montoInteres']").val()) || 0;
+            let montoTotal = montoCapital + montoInteres;
+            $("#modal [name='monto']").val(montoTotal.toFixed(2));
+            let tasaInteres = montoCapital > 0 ? (montoInteres / montoCapital) * 100 : 0;
+            $("#modal [name='tasaInteres']").val(tasaInteres.toFixed(2));
+        });
+
+        $("#modal [name='tasaInteres']").on("change", ev=>{
+            let tasaInteres = Number($("#modal [name='tasaInteres']").val()) || 0;
+            let montoCapital = Number($("#modal [name='montoCapital']").val()) || 0;
+            let montoInteres = (montoCapital * tasaInteres) / 100;
+            let montoTotal = montoCapital + montoInteres;
+            $("#modal [name='montoInteres']").val(montoInteres.toFixed(2));
+            $("#modal [name='monto']").val(montoTotal.toFixed(2));
+        });
+
 
         $("#modal [name='guardar']").on("click", async ev=>{
             let $ele = $(ev.currentTarget);
@@ -854,8 +957,7 @@ class DashboardCreditosPersonales {
         let punitorios = 0;
         let diasVencido = fechasTemporal.diffDays(fechasTemporal.now(), cuota?.vencimiento);
         if(diasVencido < 0){
-            diasVencido = Math.abs(diasVencido);
-            punitorios = diasVencido * Number(primordial.configuracion.punitorios) * restante;
+            punitorios = Math.abs(diasVencido) * Number(primordial.configuracion.punitorios) * restante;
         }
         return {
             diasVencido,
@@ -863,5 +965,10 @@ class DashboardCreditosPersonales {
             restanteCuota: restante,
             montoTotal: restante + punitorios
         }
+    }
+    obtenerCapitalInteresCuota(cuota){
+        let capital = cuota.monto / (1 + (cuota?.intereses || 0));
+        let interes = cuota.monto - capital;
+        return { capital, interes }
     }
 }

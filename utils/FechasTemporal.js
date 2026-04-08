@@ -167,6 +167,6 @@ class FechasTemporal {
 if (typeof module != "undefined") {
     module.exports = {
         FechasTemporal: new FechasTemporal(),
-        Temporal
+        Temporal: this.Temporal
     };
 }

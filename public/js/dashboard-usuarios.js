@@ -4,7 +4,7 @@ class DashboardUsuarios{
         this.permisos = [
             "menu.creditos-personales",
             "accion.editar-credito",
-            "menu.cajas",
+            "menu.resumen",
             "menu.usuarios",
             "accion.agregar-registro",
             "menu.configuracion",

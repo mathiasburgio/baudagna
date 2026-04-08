@@ -35,8 +35,8 @@
                     <div class="input-group input-group-sm">
                         <input type="search" autocomplete="off" class="form-control form-control-sm" crud="txSearch" placeholder="Buscar...">                       
                     </div>
-                    <badge class="badge badge-light cp" name="btFiltrar"s>Mostrar: Todos</badge>
-                    <badge class="badge badge-light cp" name="btOrdenar">Ordenar: Mas recientes</badge>
+                    <badge class="badge badge-light cp" name="filtrar"s>Mostrar: Todos</badge>
+                    <badge class="badge badge-light cp" name="ordenar">Ordenar: Mas recientes</badge>
                 </div>
     
                 <div class="border" id="container-main-table" style="height: 65vh; overflow-y: scroll;">
@@ -152,13 +152,15 @@
                             <div class="col">
                                 <div class="form-group">
                                     <label for="">Localidad</label>
-                                    <input type="search" autocomplete="off" class="form-control form-control-sm" name="direccion-localidad">
+                                    <select autocomplete="off" class="form-control form-control-sm" name="direccion-localidad">
+                                    </select>
                                 </div>
                             </div>
                             <div class="col">
                                 <div class="form-group">
                                     <label for="">Provincia</label>
-                                    <input type="search" autocomplete="off" class="form-control form-control-sm" name="direccion-provincia">
+                                    <select autocomplete="off" class="form-control form-control-sm" name="direccion-provincia">
+                                    </select>
                                 </div>
                             </div>
                         </div>
@@ -506,6 +508,7 @@
                         <th class="text-right">Monto cuota</th>
                         <th class="text-right">Monto punit.</th>
                         <th class="text-right">Total</th>
+                        <th class="text-right"></th>
                     </tr>
                 </thead>
                 <tbody></tbody>
@@ -521,10 +524,32 @@
             <label for="">Vencimiento</label>
             <input type="date" class="form-control" name="vencimiento" autocomplete="off">
         </div>
-        <div class="form-group">
-            <label for="">Monto</label>
-            <input type="number" class="form-control" name="monto" autocomplete="off">
-        </div>
+        <div class="row">
+            <div class="col">
+                <div class="form-group">
+                    <label for="">Monto cuota</label>
+                    <input type="number" readonly class="form-control" name="monto" autocomplete="off">
+                </div>
+            </div>
+            <div class="col">
+                <div class="form-group">
+                    <label for="">Monto Capital</label>
+                    <input type="number" class="form-control" name="montoCapital" autocomplete="off">
+                </div>
+            </div>
+            <div class="col">
+                <div class="form-group">
+                    <label for="">Monto Interés</label>
+                    <input type="number" class="form-control" name="montoInteres" autocomplete="off">
+                </div>
+            </div>
+            <div class="col">
+                <div class="form-group">
+                    <label for="">Tasa interes</label>
+                    <input type="number" class="form-control" name="tasaInteres" autocomplete="off">
+                </div>
+            </div>
+        </div>    
         <div class="form-group">
             <label for="">Cobrado</label>
             <select name="cobrado" class="form-control" autocomplete="off">

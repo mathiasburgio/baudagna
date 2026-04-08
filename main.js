@@ -109,6 +109,7 @@ if(process.env?.CORS === "true") app.use(cors());
 app.set("view engine", "ejs");
 
 //archivos estaticos
+app.use("/html", express.static( path.join(__dirname, "/views/html") ));
 app.use("/css", express.static( path.join(__dirname, "/public/css") ));
 app.use("/js", express.static( path.join(__dirname + "/public/js") ));
 app.use("/resources", express.static( path.join(__dirname + "/public/resources") ));
@@ -184,7 +185,7 @@ app.use( require("./routes/usuarios-routes") );
 app.use( require("./routes/dashboard-routes") );
 app.use( require("./routes/creditos-personales-routes") );
 app.use( require("./routes/configuracion-routes") );
-//app.use( require("./routes/cajas-routes") );
+app.use( require("./routes/resumen-routes") );
 
 //ping para control
 app.get("/ping", 

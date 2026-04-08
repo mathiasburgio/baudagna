@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recibo de Pago - Financiera</title>
+    
+    <!-- Google Font: Source Sans Pro -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:300,400,400i,700&display=fallback">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <!-- AdminLTE CSS (Incluye Bootstrap 4.6) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/css/adminlte.min.css">
+
+    <style>
+        body {
+            background-color: #545659; /* Fondo oscuro tipo escritorio */
+            padding-top: 20px;
+            padding-bottom: 20px;
+        }
+        
+        /* Simulación de Hoja A4 en pantalla */
+        .a4-wrapper {
+            width: 21cm;
+            min-height: 29.7cm;
+            padding: 2cm;
+            margin: 0 auto;
+            background: white;
+            box-shadow: 0 0 15px rgba(0,0,0,0.5);
+            position: relative;
+        }
+
+        /* Letra X de Argentina */
+        .tipo-comprobante {
+            position: absolute;
+            top: 2cm;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 2px solid #333;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+            font-weight: bold;
+            background: white;
+            z-index: 10;
+        }
+
+        .tipo-comprobante-label {
+            position: absolute;
+            top: calc(2cm + 55px);
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 10px;
+            font-weight: bold;
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        .firmas-caja {
+            margin-top: 80px;
+        }
+
+        .linea-firma {
+            border-top: 1px solid #333;
+            width: 80%;
+            margin: 0 auto 5px auto;
+        }
+
+        /* Configuraciones para la Impresora */
+        @media print {
+            @page {
+                size: A4;
+                margin: 0; /* El margen lo da el padding del a4-wrapper */
+            }
+            body {
+                background-color: white;
+                padding: 0;
+            }
+            .a4-wrapper {
+                box-shadow: none;
+                width: 100%;
+                min-height: auto;
+                padding: 1.5cm; /* Ajuste fino para impresión real */
+            }
+            .d-print-none {
+                display: none !important;
+            }
+            .table-striped tbody tr:nth-of-type(odd) {
+                background-color: rgba(0,0,0,.05) !important;
+                -webkit-print-color-adjust: exact; 
+                print-color-adjust: exact;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container text-center mb-3 d-print-none">
+    <button class="btn btn-info shadow" onclick="window.print()">
+        <i class="fas fa-print"></i> Imprimir Recibo
+    </button>
+</div>
+
+<!-- Contenedor tamaño A4 -->
+<div class="a4-wrapper invoice p-4 mb-3">
+    
+    <!-- Tipo de Comprobante (La X central argentina) -->
+    <div class="tipo-comprobante">X</div>
+    <div class="tipo-comprobante-label">DOCUMENTO NO VÁLIDO<br>COMO FACTURA</div>
+
+    <!-- Título de la Factura -->
+    <div class="row">
+        <div class="col-12">
+            <h4>
+                <i class="fas fa-university text-primary"></i> <span id="empresaNombre">ATN FINANCIERA</span>
+                <small class="float-right">Fecha: <span id="fechaActual"></span></small>
+            </h4>
+        </div>
+    </div>
+    
+    <hr>
+
+    <!-- Fila de información -->
+    <div class="row invoice-info mt-5 pt-5">
+        <div class="col-sm-4 invoice-col">
+            De
+            <address>
+                <strong id="empresaRazonSocial">ATN Financiera</strong><br>
+                <span id="empresaDireccion">Berro 302</span><br>
+                Roque Pérez, Argentina<br>
+                Teléfono: <span id="empresaTel">(02227) 52-2525</span><br>
+                CUIT: <span id="empresaCuit">30-12345678-9</span>
+            </address>
+        </div>
+        
+        <!-- Espacio central para no pisar la "X" -->
+        <div class="col-sm-4 invoice-col">
+            Para
+            <address>
+                <strong id="clienteNombre">Juan Pérez</strong><br>
+                DOC: <span id="clienteDoc">20.333.444</span><br>
+                Domicilio: <span id="clienteDireccion">Calle Falsa 123</span><br>
+                Localidad: <span id="clienteLocalidad">Rosario, Santa Fe</span><br>
+                Tel: <span id="clienteTel">341-555-0000</span>
+            </address>
+        </div>
+        
+        <div class="col-sm-4 invoice-col text-right">
+            <b>Recibo de Pago #<span id="nroRecibo">0001-000456</span></b><br>
+            <b>Fecha de cobro:</b> <span id="fechaCobro">15/06/2026</span><br>
+            <b>Crédito Nº:</b> <span id="nroCredito">CR-9921</span><br>
+            <b>Cuota Nro:</b> <span id="nroCuota">3 de 12</span><br>
+            <b>Vencimiento Próx:</b> <span id="vtoProximo">15/06/2026</span><br>
+            <b>Medio de pago:</b> <span id="medioPago">Efectivo</span>
+        </div>
+    </div>
+
+    <!-- Fila de la Tabla -->
+    <div class="row mt-4">
+        <div class="col-12 table-responsive">
+            <table class="table table-striped">
+                <thead class="thead-dark">
+                    <tr>
+                        <th>Concepto / Descripción</th>
+                        <th>Moneda</th>
+                        <th class="text-right">Subtotal</th>
+                    </tr>
+                </thead>
+                <tbody id="tablaConceptos">
+                    <!-- Contenido dinámico desde JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <!-- Columna de Notas y Legales -->
+        <div class="col-6">
+            <p class="lead">Son pesos:</p>
+            <p class="text-muted well well-sm shadow-none text-uppercase" style="margin-top: 10px;" id="montoLetras">
+                Cincuenta y dos mil quinientos con 00/100 centavos.
+            </p>
+            
+            <p class="text-muted small text-justify mt-3">
+                <strong>Cláusula legal:</strong> El pago de la presente cuota no implica la cancelación de deudas anteriores, 
+                ni intereses punitorios o compensatorios no facturados en el presente recibo. El saldo pendiente es puramente 
+                informativo y está sujeto a revisión contable.
+            </p>
+        </div>
+        
+        <!-- Columna de Totales -->
+        <div class="col-6">
+            <p class="lead">Resumen de Cuenta</p>
+            <div class="table-responsive">
+                <table class="table">
+                    <tr>
+                        <th style="width:50%">Subtotal de cuota:</th>
+                        <td class="text-right" id="subtotalCuota">$ 0,00</td>
+                    </tr>
+                    <tr>
+                        <th>Intereses / Cargos:</th>
+                        <td class="text-right" id="totalIntereses">$ 0,00</td>
+                    </tr>
+                    <tr>
+                        <th>Mora / Punitorios:</th>
+                        <td class="text-right" id="totalMora">$ 0,00</td>
+                    </tr>
+                    <tr class="bg-light">
+                        <th>Total Abonado:</th>
+                        <td class="text-right"><h4 class="font-weight-bold mb-0" id="totalAbonado">$ 0,00</h4></td>
+                    </tr>
+                    <tr>
+                        <th>Saldo Pendiente de Capital:</th>
+                        <td class="text-right font-weight-bold text-danger" id="saldoPendiente">$ 0,00</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firmas -->
+    <div class="row firmas-caja">
+        <div class="col-6 text-center">
+            <div class="linea-firma"></div>
+            <p class="mb-0 font-weight-bold">Firma del Cliente</p>
+            <small>Aclaración y DNI</small>
+        </div>
+        <div class="col-6 text-center">
+            <div class="linea-firma"></div>
+            <p class="mb-0 font-weight-bold">Por ATN financiera</p>
+            <small>Cajero / Apoderado</small>
+        </div>
+    </div>
+
+</div>
+
+<script src="/resources/cdn/jquery-3.7.1.min.js"></script>
+<script src="/resources/cdn/bootstrap/js/popper.min.js"></script>
+<!-- <script src="https://cdn.jsdelivr.net/npm/number-to-words-es@1.0.3/dist/index.min.js"></script> -->
+<script src="https://cdn.jsdelivr.net/npm/numero-a-letras@1.0.6/build/numeroaletras.min.js"></script>
+<script src="/resources/cdn/adminlte/js/adminlte.min.js"></script>
+<script src="/resources/cdn/bootstrap/js/bootstrap.min.js"></script>
+<script src="/resources/cdn/sweetalert2/sweetalert2.all.min.js"></script>
+
+<script src="/resources/FechasTemporal.js"></script>
+<script src="/resources/Modal2.js"></script>
+<script src="/resources/Utils.js"></script>
+
+<script>
+    let modal = new Modal();
+    let utils = new Utils();
+    let fechasTemporal = new FechasTemporal();
+
+    // Estructura de datos simulando una respuesta de tu base de datos
+    let data = {
+        conceptos: [
+            { cant: 1, desc: "Amortización de Capital Cuota 5", tipo: "capital", importe: 65000 },
+            { cant: 1, desc: "Intereses Compensatorios", tipo: "interes", importe: 15500 },
+            { cant: 1, desc: "Seguro de Vida e Incapacidad", tipo: "cargo", importe: 3700 },
+            { cant: 0, desc: "Intereses Punitorios (Mora 0 días)", tipo: "mora", importe: 0 }
+        ],
+        saldos: {
+            saldoRestante: 1235000
+        }
+    };
+
+    function llenarDatos() {
+        // Fechas y Cabecera
+        document.querySelector("#fechaActual").innerHTML = fechasTemporal.toString(new Date(), "arg");
+        document.querySelector("#fechaCobro").innerHTML = fechasTemporal.toString(data.cobro.fecha, "arg");
+        document.querySelector("#nroRecibo").innerHTML = data.recibo.numero;
+        document.querySelector("#nroCredito").innerHTML = data.credito.numero;
+        document.querySelector("#nroCuota").innerHTML = data.cuota.numero;
+        document.querySelector("#vtoProximo").innerHTML = data.cuota.proximoVencimiento || '-';
+        document.querySelector("#medioPago").innerHTML = data.cobro.caja;
+        
+        // Cliente
+        document.querySelector("#clienteNombre").innerHTML = data.credito.datosGenerales["datos-personales-apellidos"] + ", " + data.credito.datosGenerales["datos-personales-nombres"];
+        document.querySelector("#clienteDoc").innerHTML = (data.credito.datosGenerales["datos-personales-tipo-documento"] + " " + data.credito.datosGenerales["datos-personales-numero-documento"]).trim() || "-";
+        document.querySelector("#clienteDireccion").innerHTML = data.credito.datosGenerales["datos-personales-direccion"] || "-";
+        document.querySelector("#clienteLocalidad").innerHTML = data.credito.datosGenerales["datos-personales-localidad"] || "-";
+        document.querySelector("#clienteTel").innerHTML = data.credito.datosGenerales["datos-personales-telefono"] || "-";
+
+        // Monto en letras
+        document.querySelector("#montoLetras").innerHTML = numeroALetras(Number(data.cobro.montoCuota) + Number(data.cobro.montoPunitorios));
+
+        //Tabla
+        const agregarFila = (desc, moneda, importe) => {
+            let fox = `
+                <tr>
+                    <td>${desc}</td>
+                    <td>${moneda}</td>
+                    <td class="text-right">$ ${utils.formatNumber(importe)}</td>
+                </tr>
+            `;
+            $("#tablaConceptos").append(fox);
+        };
+
+        agregarFila(`Monto cuota núm ${data.cuota.numero} con vencimiento ${fechasTemporal.toString(data.cuota.vencimiento, "arg")}`, "ARS", data.cobro?.montoCuota || 0);
+        //agregarFila("Intereses Compensatorios", "ARS", data.cuota.montoInteres);
+        agregarFila(`Punitorios por Mora (${data.cobro?.diasPunitorios || 0} días)`, "ARS", data.cobro?.montoPunitorios || 0);
+
+        // Tabla y Cálculos
+        let htmlTabla = "";
+        let sumaCapital = 0;
+        let sumaIntereses = 0;
+        let sumaMora = 0;
+
+        data.conceptos.forEach(item => {
+            // Clasificar para los subtotales
+            if(item.tipo === 'capital') sumaCapital += item.importe;
+            if(item.tipo === 'interes' || item.tipo === 'cargo') sumaIntereses += item.importe;
+            if(item.tipo === 'mora') sumaMora += item.importe;
+
+            htmlTabla += `
+                <tr>
+                    <td>${item.cant > 0 ? item.cant : '-'}</td>
+                    <td>${item.desc}</td>
+                    <td>ARS</td>
+                    <td class="text-right">$ ${item.importe.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
+                </tr>
+            `;
+        });
+
+        let totalAbonado = sumaCapital + sumaIntereses + sumaMora;
+
+        // Renderizar Tabla
+        document.querySelector("#tablaConceptos").innerHTML = htmlTabla;
+
+        // Renderizar Totales
+        document.querySelector("#subtotalCuota").innerHTML = `$ ${sumaCapital.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
+        document.querySelector("#totalIntereses").innerHTML = `$ ${sumaIntereses.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
+        document.querySelector("#totalMora").innerHTML = `$ ${sumaMora.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
+        document.querySelector("#totalAbonado").innerHTML = `$ ${totalAbonado.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
+        
+        document.querySelector("#saldoPendiente").innerHTML = `$ ${data.saldos.saldoRestante.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
+    }
+
+    async function obtenerDatos(){
+        let params = new URLSearchParams(window.location.search);
+        let cobroId = params.get("cobroId");
+        let creditoId = params.get("creditoId");
+
+        if(!cobroId || !creditoId){
+            alert("Faltan parámetros obligatorios para generar el recibo.");
+            return;
+        }
+
+        let {recibo, credito} = await $.get("/dashboard/creditos-personales/obtener-recibo", {cobroId, creditoId});
+        if(!recibo) return modal.message("Recibo no encontrado");
+        if(!credito) return modal.message("Crédito no encontrado");
+        let cuota = credito.cuotas.find(c => c._id == recibo.cuotaId);
+        let cobro = credito.cobros.find(c => c._id == recibo.cobroId);
+
+        console.log({recibo, credito, cuota, cobro});
+        data = {recibo, credito, cuota, cobro};
+        llenarDatos();
+    }
+    function numeroALetras(numero) {
+        let aux = window.NumerosALetras(numero);
+        return aux
+            .replace("PESOS", "Pesos con ")
+            .replace("M.N.", "Centavos");
+    }
+    // Ejecutar la función al cargar la página
+    window.onload = async () => {
+        await obtenerDatos();
+        llenarDatos();
+    };
+</script>
+
+</body>
+</html>

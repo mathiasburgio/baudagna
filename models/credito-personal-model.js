@@ -29,7 +29,10 @@ const creditoPersonalSchema = new mongoose.Schema({
     }],
     cuotas: [{
         numero: Number,
-        monto: Number,
+        monto: Number, //capital + monto de intereses
+        montoCapital: Number, //solo el monto de capital (para poder modificarlo sin afectar los intereses)
+        montoInteres: Number, //solo el monto de intereses (para poder modificarlo sin afectar el capital)
+        tasaInteres: Number, //con esto puedo extraer el interes de cada cuota, aunque tambien lo tengo en generadorCuotas, pero por si hay modificaciones posteriores
         vencimiento: String,
         cobrado: Boolean,
         eliminado: Boolean,
@@ -43,6 +46,7 @@ const creditoPersonalSchema = new mongoose.Schema({
         fechaPrimerVencimiento: String,
         fechaUltimoVencimiento: String,
     },
+    proximoVencimiento: String,
     eliminado: Boolean,
     cerrado: Boolean,
 }, { timestamps: true });
