@@ -196,7 +196,7 @@
             <p class="lead">Resumen de Cuenta</p>
             <div class="table-responsive">
                 <table class="table">
-                    <tr>
+                    <!-- <tr>
                         <th style="width:50%">Subtotal de cuota:</th>
                         <td class="text-right" id="subtotalCuota">$ 0,00</td>
                     </tr>
@@ -207,15 +207,15 @@
                     <tr>
                         <th>Mora / Punitorios:</th>
                         <td class="text-right" id="totalMora">$ 0,00</td>
-                    </tr>
+                    </tr> -->
                     <tr class="bg-light">
                         <th>Total Abonado:</th>
                         <td class="text-right"><h4 class="font-weight-bold mb-0" id="totalAbonado">$ 0,00</h4></td>
                     </tr>
-                    <tr>
+                    <!-- <tr>
                         <th>Saldo Pendiente de Capital:</th>
                         <td class="text-right font-weight-bold text-danger" id="saldoPendiente">$ 0,00</td>
-                    </tr>
+                    </tr> -->
                 </table>
             </div>
         </div>
@@ -254,19 +254,6 @@
     let utils = new Utils();
     let fechasTemporal = new FechasTemporal();
 
-    // Estructura de datos simulando una respuesta de tu base de datos
-    let data = {
-        conceptos: [
-            { cant: 1, desc: "Amortización de Capital Cuota 5", tipo: "capital", importe: 65000 },
-            { cant: 1, desc: "Intereses Compensatorios", tipo: "interes", importe: 15500 },
-            { cant: 1, desc: "Seguro de Vida e Incapacidad", tipo: "cargo", importe: 3700 },
-            { cant: 0, desc: "Intereses Punitorios (Mora 0 días)", tipo: "mora", importe: 0 }
-        ],
-        saldos: {
-            saldoRestante: 1235000
-        }
-    };
-
     function llenarDatos() {
         // Fechas y Cabecera
         document.querySelector("#fechaActual").innerHTML = fechasTemporal.toString(new Date(), "arg");
@@ -303,40 +290,13 @@
         //agregarFila("Intereses Compensatorios", "ARS", data.cuota.montoInteres);
         agregarFila(`Punitorios por Mora (${data.cobro?.diasPunitorios || 0} días)`, "ARS", data.cobro?.montoPunitorios || 0);
 
-        // Tabla y Cálculos
-        let htmlTabla = "";
-        let sumaCapital = 0;
-        let sumaIntereses = 0;
-        let sumaMora = 0;
-
-        data.conceptos.forEach(item => {
-            // Clasificar para los subtotales
-            if(item.tipo === 'capital') sumaCapital += item.importe;
-            if(item.tipo === 'interes' || item.tipo === 'cargo') sumaIntereses += item.importe;
-            if(item.tipo === 'mora') sumaMora += item.importe;
-
-            htmlTabla += `
-                <tr>
-                    <td>${item.cant > 0 ? item.cant : '-'}</td>
-                    <td>${item.desc}</td>
-                    <td>ARS</td>
-                    <td class="text-right">$ ${item.importe.toLocaleString('es-AR', {minimumFractionDigits: 2})}</td>
-                </tr>
-            `;
-        });
-
-        let totalAbonado = sumaCapital + sumaIntereses + sumaMora;
-
-        // Renderizar Tabla
-        document.querySelector("#tablaConceptos").innerHTML = htmlTabla;
-
         // Renderizar Totales
-        document.querySelector("#subtotalCuota").innerHTML = `$ ${sumaCapital.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
+        /* document.querySelector("#subtotalCuota").innerHTML = `$ ${sumaCapital.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
         document.querySelector("#totalIntereses").innerHTML = `$ ${sumaIntereses.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
-        document.querySelector("#totalMora").innerHTML = `$ ${sumaMora.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
-        document.querySelector("#totalAbonado").innerHTML = `$ ${totalAbonado.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
+        document.querySelector("#totalMora").innerHTML = `$ ${sumaMora.toLocaleString('es-AR', {minimumFractionDigits: 2})}`; */
+        document.querySelector("#totalAbonado").innerHTML = `$ ${utils.formatNumber(data.cobro.montoCuota + data.cobro.montoPunitorios)}`;
         
-        document.querySelector("#saldoPendiente").innerHTML = `$ ${data.saldos.saldoRestante.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
+        //document.querySelector("#saldoPendiente").innerHTML = `$ ${data.saldos.saldoRestante.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
     }
 
     async function obtenerDatos(){
@@ -360,15 +320,14 @@
         llenarDatos();
     }
     function numeroALetras(numero) {
-        let aux = window.NumerosALetras(numero);
+        let aux = window.NumerosALetras(numero).toLowerCase();
         return aux
-            .replace("PESOS", "Pesos con ")
-            .replace("M.N.", "Centavos");
+            .replace("pesos", "Pesos con ")
+            .replace("m.n.", "Centavos");
     }
     // Ejecutar la función al cargar la página
     window.onload = async () => {
         await obtenerDatos();
-        llenarDatos();
     };
 </script>
 
