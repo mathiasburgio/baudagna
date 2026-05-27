@@ -30,7 +30,7 @@ app.use(session({
     saveUninitialized: false,
     rolling: true, //renueva la cookie de sesion cada vez que se hace una peticion
     cookie: {
-        maxAge : Number(process.env?.SESSION_MAXAGE) || (1000 * 60 * 60 * 24 * 5),//5 días
+        maxAge : Number(process.env?.SESSION_MAXAGE) || (1000 * 60 * 60 * 24 * 365),//365 días
         sameSite: "lax",
         secure : (process.env.NODE_ENV === 'production') // true ssl
     },
@@ -44,40 +44,6 @@ app.use(helmet({
 
 //favicon
 app.use( favicon(__dirname + "/public/resources/branding/favicon.png") );
-
-//compresion
-app.use(compression({
-    level: 6, // buen balance CPU / tamaño
-    filter: (req, res) => {
-
-        // 🔹 Si el cliente pide explícitamente no-comprimir
-        if (req.headers['x-no-compression']) return false;
-
-        const type = res.getHeader('Content-Type');
-
-        if (!type) return false;
-
-        // 🔹 NO comprimir estos tipos
-        if (
-            type.startsWith("image/") ||
-            type.startsWith("audio/") ||
-            type.startsWith("video/") ||
-            type === "application/pdf" ||
-            type === "application/octet-stream"
-        ) return false;
-
-        // 🔹 Comprimir solo tipos útiles
-        return (
-            type.includes("text") ||
-            type.includes("json") ||
-            type.includes("javascript") ||
-            type.includes("css") ||
-            type.includes("html")
-        );
-    }
-}));
-
-
 
 //limite bodyparser
 app.use(bodyParser.json({ limit: '3mb' }));

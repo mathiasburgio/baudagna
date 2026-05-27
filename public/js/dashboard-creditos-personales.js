@@ -36,7 +36,7 @@ class DashboardCreditosPersonales {
     }
     async initHTML(){
         await boilerplate(true);   
-        await this.obtenerCreditos();
+        this.creditos = await this.obtenerCreditos();
         
         this.crud = new SimpleCRUD({
             list: this.creditos,
@@ -47,7 +47,7 @@ class DashboardCreditosPersonales {
                     prop: "-",
                     width: "calc(100% - 130px)",
                     fn: (e, f) => {
-                        let resp = f.datosGenerales["datos-personales-apellidos"] + " " + f.datosGenerales["datos-personales-nombres"];
+                        let resp = f.datosGenerales?.["datos-personales-apellidos"] + " " + f.datosGenerales?.["datos-personales-nombres"];
                         return resp;
                     }
                 },
@@ -81,6 +81,11 @@ class DashboardCreditosPersonales {
                 $("#cuotas tbody").html("");
                 if(item.cuotas) this.listarCuotas();
 
+                let localidad = item.datosGenerales["direccion-localidad"];
+                let provincia = item.datosGenerales["direccion-provincia"];
+                if($("[name='direccion-localidad'] [value='" + localidad + "']").length == 0) $("[name='direccion-localidad']").append(`<option value="${localidad}">${localidad}</option>`);
+                if($("[name='direccion-provincia'] [value='" + provincia + "']").length == 0) $("[name='direccion-provincia']").append(`<option value="${provincia}">${provincia}</option>`);
+
                 console.log(item);
                 $("[crud='btModify']").click();
             },
@@ -90,12 +95,39 @@ class DashboardCreditosPersonales {
             },
             fnSearch: (p, l) => {
                 let px = utils.simplifyString(p);
-                return l.filter(item => {
+                return l
+                .filter(item=>{
+                    if(this.busqueda.filtro == "Activos"){
+                        let cuota = (item.cuotas || []).find(c=>c.cobrado == false);
+                        if(!cuota) return false;
+                    }
+                    else if(this.busqueda.filtro == "roque-perez@motos" && (item.datosGenerales?.["datos-personales-localidad"] != "Roque Pérez" || item.finalidad?.["finalidad-vehiculo-tipo"] != "moto")) return false;
+                    else if(this.busqueda.filtro == "navarro@motos" && (item.datosGenerales?.["datos-personales-localidad"] != "Navarro" || item.finalidad?.["finalidad-vehiculo-tipo"] != "moto")) return false;
+                    else if(this.busqueda.filtro == "roque-perez@autos" && (item.datosGenerales?.["datos-personales-localidad"] != "Roque Pérez" || item.finalidad?.["finalidad-vehiculo-tipo"] != "auto")) return false;
+                    else if(this.busqueda.filtro == "navarro@autos" && (item.datosGenerales?.["datos-personales-localidad"] != "Navarro" || item.finalidad?.["finalidad-vehiculo-tipo"] != "auto")) return false;
+                    return item;
+                })
+                .filter(item => {
                     let apellidos = utils.simplifyString(item.datosGenerales?.["datos-personales-apellidos"] || "");
                     let nombres = utils.simplifyString(item.datosGenerales?.["datos-personales-nombres"] || "");
                     let dni = utils.simplifyString(item.datosGenerales?.["datos-personales-dni"] || "");
                     let telefono = utils.simplifyString(item.datosGenerales?.["datos-personales-telefono"] || "");
                     return apellidos.includes(px) || nombres.includes(px) || dni.includes(px) || telefono.includes(px);
+                })
+                .sort((a,b)=>{
+                    if(this.busqueda.orden == "Mas reciente") return new Date(b.createdAt) - new Date(a.createdAt);
+                    else if(this.busqueda.orden == "Alfabético"){
+                        let apellidosA = a.datosGenerales?.["datos-personales-apellidos"] || "";
+                        let apellidosB = b.datosGenerales?.["datos-personales-apellidos"] || "";
+                        return apellidosA?.localeCompare(apellidosB) || 0;
+                    }else if(this.busqueda.orden == "Próximo vencimiento"){
+                        let cuotaA = (a.cuotas || []).find(c=>c.cobrado == false);
+                        let cuotaB = (b.cuotas || []).find(c=>c.cobrado == false);
+                        if(!cuotaA && !cuotaB) return 0;
+                        else if(!cuotaA) return 1;
+                        else if(!cuotaB) return -1;
+                        return new Date(cuotaA.vencimiento) - new Date(cuotaB.vencimiento);
+                    }else return 0;
                 });
             },
             fnDblClick: async (element)=>{
@@ -174,7 +206,8 @@ class DashboardCreditosPersonales {
             ele.html("Mostrar: " + aux);
             if(aux != "Todos") ele.addClass("badge-warning").removeClass("badge-light");
             else ele.addClass("badge-light").removeClass("badge-warning");
-            this.obtenerCreditos();
+            this.crud.search( $("[crud='txSearch']").val() );
+            //this.obtenerCreditos();
         })
         $("[name='ordenar']").on("click", async ev=>{
             let ele = $(ev.currentTarget);
@@ -188,7 +221,8 @@ class DashboardCreditosPersonales {
             ele.html("Ordenar: " + aux);
             if(aux != "Mas reciente") ele.addClass("badge-warning").removeClass("badge-light");
             else ele.addClass("badge-light").removeClass("badge-warning");
-            this.obtenerCreditos();
+            this.crud.search( $("[crud='txSearch']").val() );
+            //this.obtenerCreditos();
         })
 
         $("[name='direccion-localidad']").html(utils.getOptions({ar: primordial.configuracion.localidades}));
@@ -369,17 +403,10 @@ class DashboardCreditosPersonales {
     }
     async obtenerCreditos(){
         let resp = await $.get("/dashboard/creditos-personales/listar?filtro=" + this.busqueda.filtro + "&orden=" + this.busqueda.orden + "&pagina=" + this.busqueda.pagina);
-        this.busqueda.pagina++;
-        this.creditos = resp;
-        $("[crud='txSearch']").val("");
-        if(this.crud){
-            this.crud.clearFields();
-            $("#cuotas tbody").html("");
-            this.crud.element = null;
-
-            this.crud.list = this.creditos;
-            this.crud.search("");
-        } 
+        resp.forEach(cred => {
+            if(cred["datos-personales-estado-civil"] == "0") cred["datos-personales-estado-civil"] = null;
+            if(cred["datos-personales-tipo-documento"] == "0") cred["datos-personales-tipo-documento"] = null;
+        });
         return resp;
     }
     listarCuotas(){
@@ -389,23 +416,24 @@ class DashboardCreditosPersonales {
             if(c?.eliminado === true) return;
             let cobros = this.crud?.element?.cobros?.filter(cobro => cobro.cuotaId === c._id && c.eliminado != true) || [];
             let sumaCobros = cobros.reduce((acc, cobro) =>{
-                if(cobro?.eliminado != true) acc += cobro?.montoCuota || 0;
+                if(cobro?.eliminado != true) acc += cobro?.monto || 0;
                 return acc;
             }, 0);
             let labelDeuda = "";
             let trColor = "";
-            if(c?.vencimiento < fechasTemporal.toString()){ //vencido
-                let diff = Math.abs(fechasTemporal.diffDays(fechasTemporal.toString(), c.vencimiento));
-                let restanteCuota = c.monto - sumaCobros;
-                let montoPunitorios = punitorios * diff * restanteCuota ;
-                labelDeuda = "$" + utils.formatNumber(restanteCuota + montoPunitorios);
-                trColor = "table-danger";
+            if(c.cobrado){
+                labelDeuda = "COBRADO";
+                trColor = "table-success";
             }else{
-                if(c.cobrado){
-                    labelDeuda = "COBRADO";
-                    trColor = "table-success";
+                if(c?.vencimiento < fechasTemporal.toString()){ //vencido
+                    let diff = Math.abs(fechasTemporal.diffDays(fechasTemporal.toString(), c.vencimiento));
+                    let restanteCuota = c.monto - sumaCobros;
+                    let montoPunitorios = punitorios * diff * restanteCuota ;
+                    labelDeuda = "$" + utils.formatNumber(restanteCuota + montoPunitorios);
+                    trColor = "table-danger";
+                }else{
+                    labelDeuda = "$" + utils.formatNumber(c.monto);
                 }
-                else labelDeuda = "$" + utils.formatNumber(c.monto);
             }
 
             rows += `<tr cuota-id="${c?._id}" class="${trColor}">
@@ -511,7 +539,7 @@ class DashboardCreditosPersonales {
 
                 let cobros = creditosPersonales.crud?.element?.cobros?.filter(cobro => cobro.cuotaId === cuota._id && cobro.eliminado != true) || [];
                 let sumaCobros = cobros.reduce((acc, cobro) =>{
-                    if(cobro?.eliminado != true) acc += cobro?.montoCuota || 0;
+                    if(cobro?.eliminado != true) acc += cobro?.monto || 0;
                     return acc;
                 }, 0);
 
@@ -521,11 +549,11 @@ class DashboardCreditosPersonales {
 
                 let fox = "";
                 fox += `Monto cuota: ${utils.formatNumber(cuota.monto)}<br>`;
-                fox += `Monto cobrado: ${utils.formatNumber(sumaCobros)}<br>`;
-                fox += `Restante: ${utils.formatNumber(restate)}<br>`;
-                fox += `Días vencido: ${diasVencido > 0 ? diasVencido : 0}<br>`;
-                fox += `Monto punitorios: ${utils.formatNumber(montoPunitorios)}<br>`;
-                fox += `Total a pagar: ${utils.formatNumber(restate + montoPunitorios)}<br>`;
+                if(sumaCobros > 0) fox += `Monto cobrado: ${utils.formatNumber(sumaCobros)}<br>`;
+                if(cuota?.cobrado != true) fox += `Restante: ${utils.formatNumber(restate)}<br>`;
+                if(cuota?.cobrado != true) fox += `Días vencido: ${diasVencido > 0 ? diasVencido : 0}<br>`;
+                if(montoPunitorios > 0) fox += `Monto punitorios: ${utils.formatNumber(montoPunitorios)}<br>`;
+                if(cuota?.cobrado != true) fox += `Total a pagar: ${utils.formatNumber(restate + montoPunitorios)}<br>`;
                 return fox;
             },
             html: true,

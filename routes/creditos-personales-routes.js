@@ -51,5 +51,9 @@ router.get("/dashboard/creditos-personales/obtener-recibo",
     middlewares.verificarPermisos({level: 1, responseType: "json"}),
     creditosPersonalesController.obtenerRecibo);
 
+router.post("/dashboard/creditos-personales/migrar",
+    //middlewares.verificarPermisos({level: 1, responseType: "json"}),
+    creditosPersonalesController.migrar);
+
 
 module.exports = router;

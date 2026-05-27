@@ -21,10 +21,15 @@ const creditoPersonalSchema = new mongoose.Schema({
         fecha: String,
         detalle: String,
         caja: String,
-        montoCuota: Number, //cuanto se pago de la cuota en este cobro
-        montoPunitorios: Number, // cuanto se pago de punitorio en este cobro
-        punitorios: Number,
-        diasPunitorios: Number, //dias vencidos al momento del cobro
+        //aqui
+        monto: Number, //monto total del cobro (cuota + punitorios)
+        montoCapital: Number, //cuanto se pago de capital en este cobro
+        montoInteres: Number, //cuanto se pago de intereses en este cobro
+        montoMora: Number, //cuanto se pago de mora en este cobro
+        diasMora: Number, //dias vencidos al momento del cobro
+        cobroParcial: Boolean, //si el monto del cobro es menor al monto total de la cuota, se considera un cobro parcial
+        cierraCuota: Boolean, //si el cobro es suficiente para cerrar la cuota, se marca como true
+        //aqui
         eliminado: Boolean,
     }],
     cuotas: [{

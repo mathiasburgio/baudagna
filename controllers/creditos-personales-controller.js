@@ -2,6 +2,7 @@ const CreditoPersonal = require("../models/credito-personal-model");
 const Recibo = require("../models/recibo-model");
 const utils = require("../utils/utils");
 const {FechasTemporal} = require("../utils/FechasTemporal");
+const {ObjectId} = require("mongodb");
 
 async function vista(req, res){
     res.status(200).render( 
@@ -11,8 +12,8 @@ async function vista(req, res){
 }
 async function listarCreditosPersonales(req, res){
     try{
-        let pagina = parseInt(req.query.pagina) || 1;
-        let limite = parseInt(req.query.limite) || 100;
+        /* let pagina = parseInt(req.query.pagina) || 1;
+        let limite = parseInt(req.query.limite) || 3000;
         let filtro = req.query.filtro || "Todos";
         let orden = req.query.orden || "Mas reciente";
 
@@ -40,11 +41,12 @@ async function listarCreditosPersonales(req, res){
         }
         
         let creditos = await CreditoPersonal.find(query)
-        .sort(orden == "Mas reciente" ? {createdAt: -1} : orden == "Alfabético" ? {"datosGenerales.nombre": 1} : {proximoVencimiento: 1})
+        .sort(orden == "Mas reciente" ? {createdAt: -1} : orden == "Alfabético" ? {"datosGenerales.apellido": 1} : {proximoVencimiento: 1})
         .limit(limite)
         .skip((pagina - 1) * limite)
-        .lean();
+        .lean(); */
 
+        let creditos = await CreditoPersonal.find({eliminado: {$ne: true}}).lean();
         res.status(200).json(creditos);
     }catch(e){
         console.error(e);
@@ -290,6 +292,389 @@ async function obtenerRecibo(req, res){
     }
 }
 
+function migrarCreditoViejoANuevo(old) {
+
+    const datosGenerales = {};
+    const finalidad = {};
+
+    // =========================
+    // DATOS GENERALES
+    // =========================
+
+    datosGenerales["observaciones"] = old.observaciones || "";
+
+    datosGenerales["datos-personales-apellidos"] = old.datosPersonalesApellidos || "";
+    datosGenerales["datos-personales-nombres"] = old.datosPersonalesNombres || "";
+    datosGenerales["datos-personales-estado-civil"] = old.datosPersonalesEstadoCivil || "";
+    datosGenerales["datos-personales-conyuge"] = old.datosPersonalesApellidosNombresConyuge || "";
+    datosGenerales["datos-personales-tipo-documento"] = old.datosPersonalesTipoDocumento || "";
+    datosGenerales["datos-personales-numero-documento"] = old.datosPersonalesNumeroDocumento || "";
+    datosGenerales["datos-personales-condicion-iva"] = old.condicionIva?.toString() || "";
+
+    datosGenerales["direccion-calle"] = [
+        old.datosPersonalesDomicilio || "",
+        old.datosPersonalesDomicilioNumero || "",
+        old.datosPersonalesDomicilioPiso || "",
+        old.datosPersonalesDomicilioDepartamento || ""
+    ]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+    datosGenerales["direccion-localidad"] = old.datosPersonalesLocalidad || "";
+    datosGenerales["direccion-provincia"] = old.datosPersonalesProvincia || "";
+
+    datosGenerales["contacto-telefono"] =
+        old.datosPersonalesCelular ||
+        old.datosPersonalesTelefono ||
+        "";
+
+    datosGenerales["contacto-email"] = "";
+
+    datosGenerales["garante-nombre"] = [
+        old.datosGaranteApellidos || "",
+        old.datosGaranteNombres || ""
+    ]
+    .join(" ")
+    .trim();
+
+    datosGenerales["garante-direccion"] =
+        old.datosGaranteDomicilioLocalidad || "";
+
+    datosGenerales["garante-telefono"] =
+        old.datosGaranteTelefonos || "";
+
+    datosGenerales["garante-tipo-documento"] = "";
+    datosGenerales["garante-numero-documento"] = "";
+
+    // =========================
+    // FINALIDAD
+    // =========================
+
+    finalidad["finalidad-tipo"] = "general";
+    finalidad["finalidad-fecha-compra"] = "";
+    finalidad["finalidad-detalle-general"] = "";
+
+    // =========================
+    // GENERADOR CUOTAS
+    // =========================
+
+    const generadorCuotas = {
+        montoSolicitado: Number(old.datosCreditoMonto || 0),
+        intereses: Number(old.datosCreditoIntereses || 0),
+        cantidadCuotas: Number(old.datosCreditoCuotas || 0),
+        montoTotal:
+            Number(old.datosCreditoMontoPorCuota || 0) *
+            Number(old.datosCreditoCuotas || 0),
+        montoCuota: Number(old.datosCreditoMontoPorCuota || 0),
+        fechaPrimerVencimiento: old.datosCreditoMesInicio
+            ? old.datosCreditoMesInicio.split("T")[0]
+            : "",
+        fechaUltimoVencimiento: old.datosCreditoMesFin
+            ? old.datosCreditoMesFin.split("T")[0]
+            : ""
+    };
+
+    // =========================
+    // CUOTAS
+    // =========================
+    
+    const cuotas = (old.cuotas || []).map((c, index) => {
+
+        let montoCapital = null;
+        let montoInteres = null;
+
+        if (
+            generadorCuotas.montoSolicitado > 0 &&
+            generadorCuotas.cantidadCuotas > 0
+        ) {
+            montoCapital = Number(
+                (
+                    generadorCuotas.montoSolicitado /
+                    generadorCuotas.cantidadCuotas
+                ).toFixed(2)
+            );
+
+            montoInteres = Number(
+                (
+                    (c.monto || 0) - montoCapital
+                ).toFixed(2)
+            );
+        }
+
+        return {
+            _id: new ObjectId(),
+
+            numero: c.numero || (index + 1),
+
+            monto: Number(c.monto || 0),
+
+            montoCapital,
+
+            montoInteres,
+
+            tasaInteres: Number(old.datosCreditoIntereses || 0),
+
+            vencimiento: c.vencimiento
+                ? c.vencimiento.split("T")[0]
+                : "",
+
+            cobrado: c.cobrado === true,
+
+            eliminado: false
+        };
+    });
+
+    // =========================
+    // COBROS
+    // =========================
+
+    const cobros = [];
+
+    (cuotas || []).forEach((c, index) => {
+        // Solo creamos un registro de cobro si la cuota estaba realmente cobrada
+        if (c.cobrado === true) {
+            // Usamos la cuota que acabamos de formatear arriba para obtener 
+            // la separación correcta de capital e interés
+            const cuotaAsociada = cuotas[index]; 
+            
+            const montoMora = Number(c.punitorio || 0);
+            const montoTotal = Number(c.monto || 0) + montoMora;
+
+            cobros.push({
+                // Dependiendo de cómo venga el ID de la cuota en el viejo modelo
+                cuotaId: c._id || c.cuotaId || null, 
+
+                fecha: c.fecha
+                    ? c.fecha.split("T")[0]
+                    : "",
+
+                detalle: c.detalle || "Migrado de sistema anterior",
+
+                caja: c.caja || "",
+
+                monto: montoTotal,
+
+                montoCapital: cuotaAsociada.montoCapital || 0,
+
+                montoInteres: cuotaAsociada.montoInteres || 0,
+
+                montoMora: montoMora,
+
+                diasMora: 0, // Dato no disponible en el modelo viejo
+
+                cobroParcial: false, // Asumimos que si estaba 'cobrada', se pagó completa
+
+                cierraCuota: true,
+
+                eliminado: false
+            });
+        }
+    });
+
+    // =========================
+    // PROXIMO VENCIMIENTO
+    // =========================
+
+    const proximaCuota = cuotas.find(c => !c.cobrado);
+
+    const proximoVencimiento =
+        proximaCuota?.vencimiento || "";
+
+    // =========================
+    // DOCUMENTOS
+    // =========================
+
+    const documentos = (old.documentos || []).map(d => ({
+        nombre: d.nombre || "",
+        archivo: d.archivo || ""
+    }));
+
+    // =========================
+    // DOCUMENTO NUEVO
+    // =========================
+
+    return {
+        numero: old.numero,
+        token: old.token,
+        estado: old.estado,
+
+        documentos,
+
+        datosGenerales,
+
+        finalidad,
+
+        cobros,
+
+        cuotas,
+
+        generadorCuotas,
+
+        proximoVencimiento,
+
+        eliminado: old.eliminado === true,
+
+        cerrado: cuotas.length > 0
+            ? cuotas.every(c => c.cobrado)
+            : false,
+
+        createdAt: old.createdAt,
+        updatedAt: old.updatedAt
+    };
+}
+
+function migrarCreditoViejoANuevoV2(creditosViejos){
+
+    const operaciones = [];
+
+    for(const creditoViejo of creditosViejos){
+
+        // ID NUEVO DEL CREDITO
+        const creditoId = new ObjectId();
+
+        // =========================
+        // CLIENTE
+        // =========================
+        const cliente = {
+            apellido: creditoViejo.datosPersonalesApellidos?.trim() || "",
+            nombre: creditoViejo.datosPersonalesNombres?.trim() || "",
+
+            telefono: creditoViejo.datosPersonalesTelefono || "",
+            celular: creditoViejo.datosPersonalesCelular || "",
+
+            direccion: {
+                calle: creditoViejo.datosPersonalesDomicilio || "",
+                numero: creditoViejo.datosPersonalesDomicilioNumero || "",
+                piso: creditoViejo.datosPersonalesDomicilioPiso || "",
+                depto: creditoViejo.datosPersonalesDomicilioDepartamento || "",
+                localidad: creditoViejo.datosPersonalesLocalidad || "",
+                provincia: creditoViejo.datosPersonalesProvincia || "",
+                codigoPostal: creditoViejo.datosPersonalesCodigoPostal || ""
+            },
+
+            documento: {
+                tipo: creditoViejo.datosPersonalesTipoDocumento || "",
+                numero: creditoViejo.datosPersonalesNumeroDocumento || "",
+                cuil: creditoViejo.datosPersonalesCuil || ""
+            }
+        };
+
+        // =========================
+        // CUOTAS
+        // =========================
+        const cuotas = (creditoViejo.cuotas || []).map((cuota, index)=>({
+
+            _id: new ObjectId(),
+
+            numero: index + 1,
+
+            monto: cuota.monto || 0,
+
+            vencimiento: cuota.vencimiento
+                ? new Date(cuota.vencimiento)
+                : null,
+
+            estado: cuota.cobrado
+                ? "pagada"
+                : "pendiente",
+
+            pago: cuota.cobrado ? {
+                fecha: cuota.fechaCobrado
+                    ? new Date(cuota.fechaCobrado)
+                    : null,
+
+                caja: cuota.caja || "",
+                detalle: cuota.detalle || ""
+            } : null,
+
+            punitorio: cuota.punitorio || 0,
+
+            notificado: cuota.notificado || false
+        }));
+
+        // =========================
+        // CREDITO NUEVO
+        // =========================
+        const creditoNuevo = {
+
+            _id: creditoId,
+
+            legacyId: creditoViejo._id,
+
+            numero: creditoViejo.numero,
+
+            token: creditoViejo.token,
+
+            estado: creditoViejo.estado,
+
+            cliente,
+
+            credito: {
+                monto: creditoViejo.datosCreditoMonto || 0,
+
+                interes: creditoViejo.datosCreditoIntereses || 0,
+
+                cuotas: creditoViejo.datosCreditoCuotas || 0,
+
+                valorCuota: creditoViejo.datosCreditoMontoPorCuota || 0,
+
+                fechaInicio: creditoViejo.datosCreditoMesInicio
+                    ? new Date(creditoViejo.datosCreditoMesInicio)
+                    : null,
+
+                fechaFin: creditoViejo.datosCreditoMesFin
+                    ? new Date(creditoViejo.datosCreditoMesFin)
+                    : null
+            },
+
+            cuotas,
+
+            observaciones: creditoViejo.observaciones || "",
+
+            documentos: creditoViejo.documentos || [],
+
+            eliminado: creditoViejo.eliminado || false,
+
+            createdAt: creditoViejo.createdAt
+                ? new Date(creditoViejo.createdAt)
+                : new Date(),
+
+            updatedAt: creditoViejo.updatedAt
+                ? new Date(creditoViejo.updatedAt)
+                : new Date()
+        };
+
+        operaciones.push({
+            insertOne: {
+                document: creditoNuevo
+            }
+        });
+    }
+
+    return operaciones;
+}
+
+//MIGRADOR
+async function migrar(req, res){
+    try{
+        let creditosViejos = req.body.creditos || [];
+        if(typeof creditosViejos === "string") creditosViejos = JSON.parse(creditosViejos);
+        await CreditoPersonal.deleteMany({});
+        if(req.body?.v == "v2"){
+            const operaciones = migrarCreditoViejoANuevoV2(creditosViejos);
+            await CreditoPersonal.bulkWrite(operaciones);
+            res.status(200).json({migrados: operaciones.length});
+        }else{
+            let creditosNuevos = creditosViejos.map(migrarCreditoViejoANuevo).flat();
+            await CreditoPersonal.insertMany(creditosNuevos);
+            res.status(200).json({migrados: creditosNuevos.length});
+        }
+    }catch(e){
+        console.error(e);
+    }
+}
+
 module.exports = {
     vista,
     listarCreditosPersonales,
@@ -305,5 +690,7 @@ module.exports = {
     eliminarCobro,
 
     generarRecibo,
-    obtenerRecibo
+    obtenerRecibo,
+
+    migrar
 }

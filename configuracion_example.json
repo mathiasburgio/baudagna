@@ -1,0 +1,11 @@
+{
+    "cajas": [
+        "efectivo",
+        "transferencia",
+        "cheques"
+    ],
+    "localidades": ["Roque Pérez", "Navarro"],
+    "Provincias": ["Buenos Aires"],
+    "punitorios": "0.0033",
+    "guardar": ""
+}
