@@ -421,4 +421,52 @@ class Utils{
         .get(0)
         .click();
     }
+
+    //esta funcion no esta probada, pero remplaza a toLocaleString(). toLocaleString() si son 4 numeros no le agrega el punto de miles
+    _separadorMiles(num){
+        const [entero, decimal] = String(num).split(".");
+
+        const enteroFormateado = entero.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+
+        return decimal !== undefined
+            ? `${enteroFormateado}.${decimal}`
+            : enteroFormateado;
+    }
+    separadorMiles($inp){
+        $inp
+        .on("focus", e=>{
+            let ele = $(e.currentTarget);
+            let v = ele.val();
+            ele.val("");
+            ele.prop("type", "number");
+            let realValue = Number(ele.attr("real-value"));
+            ele.val(realValue || "");
+        })
+        .on("blur", e=>{
+            let ele = $(e.currentTarget);
+            let v = ele.val();
+            ele.attr("real-value", v);
+            v = Number(v).toLocaleString();
+            ele.prop("type", "text");
+            ele.val(v);
+        })
+        .on("change", e=>{
+            let ele = $(e.currentTarget);
+            ele.attr("real-value", ele.val());
+        });
+
+        if(typeof $.fn.getVal == "undefined"){
+            $.fn.getVal = function(){
+                return Number(this.attr("real-value")) || 0;
+            }
+            $.fn.setVal = function(v){
+                this.attr("real-value", v);
+                if(this.prop("type") == "text"){
+                    this.val(Number(v).toLocaleString());
+                }else{
+                    this.val(v);
+                }
+            }
+        }
+    }
 }

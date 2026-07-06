@@ -25,7 +25,7 @@ async function iniciarSesion(){
 
         //intento iniciar
         let resp = await $.post({
-            url: "/usuarios/iniciar-sesion",
+            url: "/login",
             data: { email, contrasena },
         });
         console.log(resp);
@@ -38,11 +38,11 @@ async function iniciarSesion(){
         }
 
         //redirecciono a dashboard
-        if(resp == "ok") setTimeout(() => window.location.href = "/dashboard", 500);
-        else return modal.message(resp?.responseText || resp.toString());
+        if(resp.ok) setTimeout(() => window.location.href = "/creditos-personales", 500);
+        else return modal.message(resp?.error || resp?.responseText || resp.toString());
 
         
     }catch(err){
-        modal.message(err?.responseText || err.toString());
+        modal.message(err?.responseJSON?.error || err?.responseText || err.toString());
     }
 }

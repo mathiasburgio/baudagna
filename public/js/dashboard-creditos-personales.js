@@ -590,7 +590,6 @@ class DashboardCreditosPersonales {
                 $("#modal [name='monto-cuota']").parent().find("small").html("$" + utils.formatNumber(montoCuota));
             }
         });
-
         $("#modal [name='intereses']").on("change", ev=>{
             let $ele = $(ev.currentTarget);
             let v = parseInt($ele.val()) || 0;

@@ -8,17 +8,18 @@ const { connectDB, checkDatabase } = require('./utils/db');
 const path = require("path");
 const cors = require("cors");
 const favicon = require('serve-favicon');
-const fechas = require("./utils/fechas.js");
 const utils = require("./utils/utils")
 const fs = require("fs");
 const compression = require("compression");
 const helmet = require("helmet");
 const middlewares = require("./utils/middlewares.js");
 
-//controllers
-const usuariosController = require("./controllers/usuarios-controller.js");
+//contador -> gestiona numeros en el sistema. Ej numero de credito, numero de recivo, etc
 const Contador = require("./models/contador-model.js");
-const configuracionController = require("./controllers/configuracion-controller.js");
+
+//configuracion -> gestiona parametros globales del sistema. Ej usuarios, cajas, etc
+if(!fs.existsSync(path.join(__dirname, "configuracion.json"))) throw "Falta el archivo de configuracion, renombrar configuracion.json.example a configuracion.json y completarlo con los datos de la empresa y del sistema";
+let configuracion = JSON.parse(fs.readFileSync(path.join(__dirname, "configuracion.json")));
 
 require('dotenv').config();
 if(process.env.NODE_ENV != "development") app.set('trust proxy', 2);
@@ -90,7 +91,6 @@ app.use(middlewares.createRateLimit(300, 1));
 
 //conectoDB
 connectDB().then(()=>{
-    usuariosController.crearSuperAdmin(); //crea el super admin si no existe
     console.log("Base de datos conectada");
 });
 
@@ -98,23 +98,14 @@ connectDB().then(()=>{
 app.use((req, res, next)=>{
     //completar aquí con el script que recupere la informacion primordial para el uso del sistema.
     req.getPrimordial = async (req) => {
-        
-        let usuario = req.session?.data?.usuario || null;
-        let configuracion = await configuracionController.getConfiguracion(); //tambien contiene vencimiento del sistema
-        
-        let data = {
-            time: new Date().getTime(),
-            fx: fechas.getNow(true),
-            vencimiento: "2026-10-30",
-            usuarioId: req.session?.data?.usuarioId || null,
-            usuarioEmail: req.session?.data?.email || null,
-            permisos: req.session?.data?.permisos || null,
-            configuracion: configuracion,
-        };
-        return data;
+        let clon = JSON.parse(JSON.stringify(configuracion));
+        clon.usuarios.forEach(u=>{
+            delete u.contrasena;
+        });
+        return clon;
     }
     req.getContador = async (llave) => {
-        let aux = Contador.findOne({llave});
+        let aux = await Contador.findOne({llave});
         return aux.valor;
     }
     req.setContador = async (llave, valor="incr") => {
@@ -147,11 +138,7 @@ app.use((req, res, next)=>{
 });
 
 //routes
-app.use( require("./routes/usuarios-routes") );
-app.use( require("./routes/dashboard-routes") );
 app.use( require("./routes/creditos-personales-routes") );
-app.use( require("./routes/configuracion-routes") );
-app.use( require("./routes/resumen-routes") );
 
 //ping para control
 app.get("/ping", 
@@ -169,6 +156,37 @@ app.get("/",
     res.status(200).sendFile(index);
 })
 
+app.post("/login", 
+    middlewares.createRateLimit(20, 1),
+    (req, res)=>{
+    let {email, contrasena} = req.body;
+    let encontro = false;
+    configuracion.usuarios.forEach(u=>{
+        if(encontro) return;
+        if(u.email == email && u.contrasena == contrasena){
+            encontro = true;
+            req.session.data = {};
+            req.session.data.usuario = {};
+            for(let key in u){
+                if(key == "contrasena") continue;
+                req.session.data.usuario[key] = u[key];
+            }
+            req.session.save();
+            res.status(200).json({ok: true});
+        }
+    });
+    if(!encontro) res.status(403).json({ok: false, error: "Usuario o contraseña incorrectos"});
+});
+
+app.get("/logout",(req, res)=>{
+    req.session.destroy();
+    res.redirect("/");
+});
+app.post("/logout",(req, res)=>{
+    req.session.destroy();
+    res.status(200).json({ok: true});
+});
+
 //retorna informacion basica para el uso general. Ej fecha, permisos de usuario, configuracion general
 app.get("/primordial", 
     middlewares.createRateLimit(20, 1),
@@ -176,17 +194,6 @@ app.get("/primordial",
     async (req, res)=>{
     let resp = await req.getPrimordial(req);
     res.status(200).json(resp);
-})
-
-app.get("/terminos-y-condiciones", 
-    middlewares.createRateLimit(20, 1),
-    (req, res)=>{
-    res.sendFile( path.join(__dirname, "views", "html", "terminos-y-condiciones.html") );
-})
-app.get("/politicas-de-privacidad", 
-    middlewares.createRateLimit(20, 1),
-    (req, res)=>{
-    res.sendFile( path.join(__dirname, "views", "html", "politicas-de-privacidad.html") );
 })
 
 app.get("/403", (req, res)=>{
@@ -203,6 +210,5 @@ app.use((req, res, next) => {
 //inicio el servidor
 //notese "server.list" y no "app.listen" (para q tambien corra el servidor de sockets)
 app.listen(Number(process.env.PORT), async ()=>{
-    let f = fechas.getNow(true);
-    console.log( f + " baudagna -> Escuchando en http://localhost:" + process.env.PORT)
+    console.log(" baudagna -> Escuchando en http://localhost:" + process.env.PORT)
 })

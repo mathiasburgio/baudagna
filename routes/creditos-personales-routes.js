@@ -3,57 +3,44 @@ const router = express.Router();
 const creditosPersonalesController = require("../controllers/creditos-personales-controller");
 const middlewares = require("../utils/middlewares");
 
-router.get("/dashboard/creditos-personales",
+router.get("/creditos-personales",
     middlewares.verificarPermisos({level: 1}),
-    creditosPersonalesController.vista);
+    creditosPersonalesController.html);
 
-router.get("/dashboard/creditos-personales/listar",
-    middlewares.verificarPermisos({level: 1, responseType: "json"}),
-    creditosPersonalesController.listarCreditosPersonales);
+router.get("/creditos-personales/listado",
+    middlewares.verificarPermisos({level: 1}),
+    creditosPersonalesController.listado);
 
-router.post("/dashboard/creditos-personales/guardar-datos-generales",
-    middlewares.verificarPermisos({level: 1, responseType: "json"}),
-    creditosPersonalesController.guardarCreditoPersonalDatosGenerales);
+router.get("/creditos-personales/obtener-credito/:creditoId",
+    middlewares.verificarPermisos({level: 1}),
+    creditosPersonalesController.obtenerCredito);
 
-router.post("/dashboard/creditos-personales/guardar-finalidad",
-    middlewares.verificarPermisos({level: 1, responseType: "json"}),
-    creditosPersonalesController.guardarCreditoPersonalFinalidad);
+router.post("/creditos-personales/nuevo",
+    middlewares.verificarPermisos({level: 1}),
+    creditosPersonalesController.nuevo);
 
-router.post("/dashboard/creditos-personales/eliminar-credito",
-    middlewares.verificarPermisos({level: 1, responseType: "json"}),
-    creditosPersonalesController.eliminarCreditoPersonal);
+router.post("/creditos-personales/modificar",
+    middlewares.verificarPermisos({level: 1}),
+    creditosPersonalesController.modificar);
 
-router.post("/dashboard/creditos-personales/generar-cuotas",
-    middlewares.verificarPermisos({level: 1, responseType: "json"}),
-    creditosPersonalesController.generarCuotas);
+router.post("/creditos-personales/eliminar",
+    middlewares.verificarPermisos({level: 1}),
+    creditosPersonalesController.eliminar);
 
-router.post("/dashboard/creditos-personales/upsert-cuota",
-    middlewares.verificarPermisos({level: 1, responseType: "json"}),
-    creditosPersonalesController.upsertCuota);
+router.post("/creditos-personales/asignar-cuotas",
+    middlewares.verificarPermisos({level: 1}),
+    creditosPersonalesController.asignarCuotas);
 
-router.post("/dashboard/creditos-personales/eliminar-cuota",
-    middlewares.verificarPermisos({level: 1, responseType: "json"}),
+router.post("/creditos-personales/modificar-cuota",
+    middlewares.verificarPermisos({level: 1}),
+    creditosPersonalesController.modificarCuota);
+
+router.post("/creditos-personales/eliminar-cuota",
+    middlewares.verificarPermisos({level: 1}),
     creditosPersonalesController.eliminarCuota);
 
-router.post("/dashboard/creditos-personales/acreditar-cobro",
-    middlewares.verificarPermisos({level: 1, responseType: "json"}),
-    creditosPersonalesController.acreditarCobro);
-
-router.post("/dashboard/creditos-personales/eliminar-cobro",
-    middlewares.verificarPermisos({level: 1, responseType: "json"}),
-    creditosPersonalesController.eliminarCobro);
-
-router.post("/dashboard/creditos-personales/generar-recibo",
-    middlewares.verificarPermisos({level: 1, responseType: "json"}),
-    creditosPersonalesController.generarRecibo);
-
-router.get("/dashboard/creditos-personales/obtener-recibo",
-    middlewares.verificarPermisos({level: 1, responseType: "json"}),
-    creditosPersonalesController.obtenerRecibo);
-
-router.post("/dashboard/creditos-personales/migrar",
-    //middlewares.verificarPermisos({level: 1, responseType: "json"}),
-    creditosPersonalesController.migrar);
-
+router.post("/creditos-personales/cobrar-cuota",
+    middlewares.verificarPermisos({level: 1}),
+    creditosPersonalesController.cobrarCuota);
 
 module.exports = router;

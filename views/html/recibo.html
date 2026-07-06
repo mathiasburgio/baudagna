@@ -301,23 +301,24 @@
 
     async function obtenerDatos(){
         let params = new URLSearchParams(window.location.search);
-        let cobroId = params.get("cobroId");
+        let cuotaId = params.get("cuotaId");
         let creditoId = params.get("creditoId");
+        console.log({cuotaId, creditoId});
 
-        if(!cobroId || !creditoId){
+        if(!cuotaId || !creditoId){
             alert("Faltan parámetros obligatorios para generar el recibo.");
             return;
         }
 
-        let {recibo, credito} = await $.get("/dashboard/creditos-personales/obtener-recibo", {cobroId, creditoId});
-        if(!recibo) return modal.message("Recibo no encontrado");
+        let credito = await $.get("/dashboard/creditos-personales/obtener-credito/" + creditoId);
         if(!credito) return modal.message("Crédito no encontrado");
-        let cuota = credito.cuotas.find(c => c._id == recibo.cuotaId);
-        let cobro = credito.cobros.find(c => c._id == recibo.cobroId);
+        console.log(credito);
+        /* let cuota = credito.cuotas.find(c => c._id == cuotaId);
+        let cobro = credito.cobros.find(c => c._id == cuotaId);
 
         console.log({recibo, credito, cuota, cobro});
         data = {recibo, credito, cuota, cobro};
-        llenarDatos();
+        llenarDatos(); */
     }
     function numeroALetras(numero) {
         let aux = window.NumerosALetras(numero).toLowerCase();

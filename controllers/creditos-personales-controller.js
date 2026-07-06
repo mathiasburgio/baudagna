@@ -1,58 +1,213 @@
 const CreditoPersonal = require("../models/credito-personal-model");
+const bitacora = require("../models/bitacora-model");
 const Recibo = require("../models/recibo-model");
 const utils = require("../utils/utils");
 const {FechasTemporal} = require("../utils/FechasTemporal");
 const {ObjectId} = require("mongodb");
 
-async function vista(req, res){
+async function html(req, res){
     res.status(200).render( 
         "../views/layouts/dashboard.ejs", 
         { page: "../pages/dashboard-creditos-personales.ejs", title: "Créditos personales" }
     );
 }
-async function listarCreditosPersonales(req, res){
+async function listado(req, res){
     try{
-        /* let pagina = parseInt(req.query.pagina) || 1;
-        let limite = parseInt(req.query.limite) || 3000;
-        let filtro = req.query.filtro || "Todos";
-        let orden = req.query.orden || "Mas reciente";
-
-        let query = {eliminado: false};
-        if(filtro == "Activos" || orden == "Próximo vencimiento"){ 
-            //cuota cobrado = false and eliminado != true
-            query["cuotas"] = {$elemMatch: {eliminado: {$ne: true}, cobrado:  {$ne: true}}};
-        }
-        if(filtro == "roque-perez@motos"){
-            query["finalidad.finalidad-tipo"] = "Vehiculo";
-            query["finalidad.finalidad-vehiculo-tipo"] = "Moto";
-            query["datosGenerales.localidad"] = "Roque Pérez";
-        }else if(filtro == "roque-perez@autos"){
-            query["finalidad.finalidad-tipo"] = "Vehiculo";
-            query["finalidad.finalidad-vehiculo-tipo"] = "Auto";
-            query["datosGenerales.localidad"] = "Roque Pérez";
-        }else if(filtro == "navarro@motos"){
-            query["finalidad.finalidad-tipo"] = "Vehiculo";
-            query["finalidad.finalidad-vehiculo-tipo"] = "Moto";
-            query["datosGenerales.localidad"] = "Navarro";
-        }else if(filtro == "navarro@autos"){
-            query["finalidad.finalidad-tipo"] = "Vehiculo";
-            query["finalidad.finalidad-vehiculo-tipo"] = "Auto";
-            query["datosGenerales.localidad"] = "Navarro";
-        }
-        
-        let creditos = await CreditoPersonal.find(query)
-        .sort(orden == "Mas reciente" ? {createdAt: -1} : orden == "Alfabético" ? {"datosGenerales.apellido": 1} : {proximoVencimiento: 1})
-        .limit(limite)
-        .skip((pagina - 1) * limite)
-        .lean(); */
-
-        let creditos = await CreditoPersonal.find({eliminado: {$ne: true}}).lean();
-        res.status(200).json(creditos);
+        const resp = await CreditoPersonal.find({eliminado: {$ne: true}}).sort({createdAt: -1}).limit(1000).lean();
+        res.status(200).json(resp);
     }catch(e){
         console.error(e);
         res.status(500).end(e.toString());
     }
 }
+async function obtenerCredito(req, res){
+    try{
+        const {creditoId} = req.params;
+        const resp = await CreditoPersonal.findOne({_id: creditoId, eliminado: {$ne: true}}).lean();
+        if(!resp) throw "Crédito no encontrado";
+        res.status(200).json(resp);
+    }catch(e){
+        console.error(e);
+        res.status(500).end(e.toString());
+    }
+}
+async function nuevo(req, res){
+    try{
+        let datos = req.body;
+        if(Object.keys(datos).length > 100) throw "Demasiados datos enviados";
+        const credito = await CreditoPersonal.create({
+            token: utils.getUUID(),
+            numero: await req.setContador("credito-personal", "incr"),
+            datosGenerales: datos,
+            finalidad: {"finalidad-tipo": "general"},
+            eliminado: false,
+        });
+
+        registrarBitacora(req.session?.data?.usuario?.email, "nuevo_credito", {creditoId: credito._id, numero: credito.numero});
+        res.status(200).json(credito);
+    }catch(e){
+        console.error(e);
+        res.status(500).end(e.toString());
+    }
+
+}
+//guarda "datosGenerales" y "finalidad"
+async function modificar(req, res){
+    try{
+        let {creditoId, tipoDato, datos} = req.body;
+        if(Object.keys(datos).length > 100) throw "Demasiados datos enviados";
+        let credito = await CreditoPersonal.findOne({_id: creditoId});
+        if(tipoDato === "datosGenerales"){
+            for(let key in datos){
+                let val = datos[key];
+                credito.datosGenerales.set(key, val);
+            }
+            await credito.save();
+        }else if(tipoDato === "finalidad"){
+            for(let key in datos){
+                let val = datos[key];
+                credito.finalidad.set(key, val);
+            }
+            await credito.save();
+        }else{
+            throw "Datos inválidos";
+        }
+        console.log("Credito modificado", creditoId, tipoDato, datos);
+        res.status(200).json(credito);
+    }catch(e){
+        console.error(e);
+        res.status(500).end(e.toString());
+    }
+}
+async function eliminar(req, res){
+    try{
+        let {creditoId} = req.body;
+        let credito = await CreditoPersonal.findOne({_id: creditoId});
+        if(!credito) throw "Crédito no encontrado";
+        credito.eliminado = true;
+        await credito.save();
+
+        registrarBitacora(req.session?.data?.usuario?.email, "eliminar_credito", {creditoId: credito._id, numero: credito.numero});
+        res.status(200).json(credito);
+    }catch(e){
+        console.error(e);
+        res.status(500).end(e.toString());
+    }
+}
+async function asignarCuotas(req, res){
+    try{
+        let {creditoId, cuotas} = req.body;
+        if(!Array.isArray(cuotas)) throw "Cuotas inválidas (debe ser un array)";
+        let credito = await CreditoPersonal.findOne({_id: creditoId});
+        if(!credito) throw "Crédito no encontrado";
+        if(credito?.cuotas?.some(c=>c.cobrado)) throw "No se pueden modificar las cuotas de un crédito con cobros registrados";
+        if(cuotas.length > 300) throw "Demasiadas cuotas enviadas (máximo 300)";
+        if(cuotas.length > 1) credito.cuotas = [];
+
+        cuotas.forEach(cuota=>{
+            let existe = credito.cuotas.find(c=>c._id.toString() == cuota?._id?.toString());
+            if(existe){
+                Object.assign(existe, cuota);
+            }else{
+                credito.cuotas.push(cuota);
+            }
+        });
+
+        obtenerProximoVencimiento(credito);
+        await credito.save();
+        res.status(200).json({credito, cuotas});
+    }catch(e){
+        console.error(e);
+        res.status(500).end(e.toString());
+    }
+}
+async function modificarCuota(req, res){
+    try{
+        let {creditoId, cuotaId, cuota} = req.body;
+        let credito = await CreditoPersonal.findOne({_id: creditoId});
+        if(!credito) throw "Crédito no encontrado";
+        let cuotaIndex = credito.cuotas.findIndex(c => c._id.toString() == cuotaId);
+        if(cuotaIndex == -1) throw "Cuota no encontrada";
+        Object.assign(credito.cuotas[cuotaIndex], cuota);
+
+        obtenerProximoVencimiento(credito);
+        await credito.save();
+        console.log(creditoId, cuotaId, cuota);
+        res.status(200).json({credito, cuota});
+    }catch(e){
+        console.error(e);
+        res.status(500).end(e.toString());
+    }
+}
+async function eliminarCuota(){
+    try{
+        let {creditoId, cuotaId} = req.body;
+        let credito = await CreditoPersonal.findOne({_id: creditoId});
+        if(!credito) throw "Crédito no encontrado";
+        let cuota = credito.cuotas.find(c => c._id.toString() == cuotaId);
+        if(!cuota) throw "Cuota no encontrada";
+        cuota.eliminado = true;
+
+        obtenerProximoVencimiento(credito);
+        await credito.save();
+        res.status(200).json(credito);
+    }catch(e){
+        console.error(e);
+        res.status(500).end(e.toString());
+    }
+}
+async function cobrarCuota(req, res){
+    try{
+        const {creditoId, cuotaId, montoTotal, montoCapital, montoInteres, montoPunitorios, diasMora, metodo, detalle} = req.body;
+        let credito = await CreditoPersonal.findOne({_id: creditoId, eliminado: {$ne: true}});
+        if(!credito) throw "Crédito no encontrado";
+        let cuota = credito.cuotas.find(c => c._id.toString() == cuotaId);
+        if(!cuota) throw "Cuota no encontrada";
+        if(cuota.eliminado) throw "No se pueden cobrar una cuota eliminada";
+        let cobroId = new ObjectId();
+        credito.cobros.push({
+            _id: cobroId,
+            cuotaId: cuotaId,
+            monto: montoTotal, //total
+            montoCapital: montoCapital,
+            montoInteres: montoInteres,
+            montoPunitorios: montoPunitorios,
+            diasMora: diasMora,
+            metodo: metodo,
+            detalle: detalle,
+            eliminado: false,
+            createdAt: new Date(), //guarda un date no "temporal"
+        });
+
+        cuota.cobrado = true;
+        cuota.cobroId = cobroId;
+        obtenerProximoVencimiento(credito);
+        await credito.save();
+        let cobro = credito.cobros.find(c=>c._id.toString() == cobroId.toString());
+        res.status(200).json({credito, cuota, cobro});
+    }catch(e){
+        console.error(e);
+        res.status(500).end(e.toString());
+    
+    }
+}
+
+async function obtenerUltimoVencimiento(cuota){
+    if(!cuota) return null;
+
+}
+
+function obtenerProximoVencimiento(credito){
+    //calculo proximo vencimiento
+    credito.cuotas.sort((a, b) => a.vencimiento - b.vencimiento);
+    let primeraEnVenceser = credito.cuotas.find(c=>c.cobrado != true && c.eliminado != true);
+    credito.proximoVencimiento = primeraEnVenceser ? primeraEnVenceser.vencimiento : null;
+}
+
+
+
+
+//VIEJO
 async function guardarCreditoPersonalDatosGenerales(req, res){
     try{
         let datos = req.body;
@@ -675,22 +830,26 @@ async function migrar(req, res){
     }
 }
 
+
+async function registrarBitacora(usuario, accion, auxiliar=null){
+    const bitacoraEntry = await bitacora.create({
+        accion: accion,
+        usuario: usuario || "Desconocido",
+        auxiliar: JSON.stringify(auxiliar)
+    });
+    return true;
+}
+
 module.exports = {
-    vista,
-    listarCreditosPersonales,
-    guardarCreditoPersonalDatosGenerales,
-    guardarCreditoPersonalFinalidad,    
-    eliminarCreditoPersonal,
-
-    generarCuotas,
-    upsertCuota,
+    html,
+    listado,
+    obtenerCredito,
+    nuevo,
+    modificar,
+    eliminar,
+    asignarCuotas,
+    modificarCuota,
     eliminarCuota,
-
-    acreditarCobro,
-    eliminarCobro,
-
-    generarRecibo,
-    obtenerRecibo,
-
-    migrar
+    cobrarCuota,
+    registrarBitacora
 }

@@ -16,6 +16,7 @@ const file403 = path.join(__dirname, "..", "views", "html", "403.html");
 */
 const verificarPermisos = ({level=0, permiso=null, responseType="html"}) => {
 	return (req, res, next)=>{
+		
 		//console.log(req.session.data, level, permiso)
 		if(typeof level === "number"){//verifico q este completado el parametro nivel
 			if(level === 3){//super-admin (mathias)
