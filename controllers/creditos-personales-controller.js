@@ -167,6 +167,7 @@ async function cobrarCuota(req, res){
         let cobroId = new ObjectId();
         credito.cobros.push({
             _id: cobroId,
+            reciboNumero: await req.setContador("recibo", "incr"),
             cuotaId: cuotaId,
             monto: montoTotal, //total
             montoCapital: montoCapital,

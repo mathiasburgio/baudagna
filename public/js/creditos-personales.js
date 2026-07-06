@@ -842,7 +842,120 @@ class CreditosPersonales{
             body: $("#modal-resumen").html(),
             size: "lg",
             buttons: "back"
-        })
+        });
 
+        // Set current month
+        let ahora = new Date();
+        let mesActual = ahora.getFullYear() + "-" + String(ahora.getMonth() + 1).padStart(2, "0");
+        $("#modal [name='mes']").val(mesActual);
+
+        const llenarGeneral = () => {
+            let hoy = fechasTemporal.toString();
+            let totalCreditos = this.listado.length;
+            let cuotasVencidas = 0, clientesConVencidas = 0;
+            let montoTotalPrestado = 0, punitoriosCobrados = 0, margenBeneficios = 0;
+            let capitalRecuperar = 0, capitalRecuperado = 0;
+            let interesGanar = 0, interesCobrado = 0;
+
+            for(let credito of this.listado){
+                let tieneVencida = false;
+                for(let cuota of (credito.cuotas || [])){
+                    if(cuota.eliminado) continue;
+
+                    capitalRecuperar += cuota.montoCapital || 0;
+                    if(cuota.cobrado) capitalRecuperado += cuota.montoCapital || 0;
+                    interesGanar += cuota.montoInteres || 0;
+                    if(cuota.cobrado) interesCobrado += cuota.montoInteres || 0;
+                    
+                    montoTotalPrestado += cuota.montoCapital || 0;
+                    if(!cuota.cobrado && cuota.vencimiento && hoy > cuota.vencimiento){
+                        cuotasVencidas++;
+                        tieneVencida = true;
+                    }
+                }
+                if(tieneVencida) clientesConVencidas++;
+                for(let cobro of (credito.cobros || [])){
+                    if(cobro.eliminado) continue;
+                    punitoriosCobrados += cobro.montoPunitorios || 0;
+                    margenBeneficios += (cobro.montoInteres || 0) + (cobro.montoPunitorios || 0);
+                }
+            }
+
+            let rows = [
+                ["Créditos dados", totalCreditos],
+                ["Cuotas vencidas", cuotasVencidas],
+                ["Cuotas vencidas (1 por cliente)", clientesConVencidas],
+                ["Monto total prestado", "$" + utils.formatNumber(utils.decimals(montoTotalPrestado, 2))],
+                ["Punitorios cobrados", "$" + utils.formatNumber(utils.decimals(punitoriosCobrados, 2))],
+                ["Margen de beneficios", "$" + utils.formatNumber(utils.decimals(margenBeneficios, 2))],
+                ["Capital a recuperar", "$" + utils.formatNumber(utils.decimals(capitalRecuperar, 2))],
+                ["Capital recuperado", "$" + utils.formatNumber(utils.decimals(capitalRecuperado, 2))],
+                ["Interés a ganar", "$" + utils.formatNumber(utils.decimals(interesGanar, 2))],
+                ["Interés cobrado", "$" + utils.formatNumber(utils.decimals(interesCobrado, 2))],
+            ];
+            $("#modal #tabla-resumen-general tbody").html(
+                rows.map(([d, v]) => `<tr><td>${d}</td><td class="text-right">${v}</td></tr>`).join("")
+            );
+        };
+
+        const llenarMensual = (mes) => {
+            let totalCreditos = 0, cuotasVencidas = 0, clientesConVencidas = 0;
+            let montoTotalPrestado = 0, punitoriosCobrados = 0, margenBeneficios = 0;
+            let capitalRecuperar = 0, capitalRecuperado = 0;
+            let interesGanar = 0, interesCobrado = 0;
+
+            for(let credito of this.listado){
+                if(credito.createdAt && String(credito.createdAt).substring(0, 7) === mes){
+                    totalCreditos++;
+                    for(let cuota of (credito.cuotas || [])){
+                        if(!cuota.eliminado) montoTotalPrestado += cuota.montoCapital || 0;
+                        if(!cuota.eliminado) capitalRecuperar += cuota.montoCapital || 0;
+                        if(!cuota.eliminado && cuota.cobrado) capitalRecuperado += cuota.montoCapital || 0;
+                        if(!cuota.eliminado) interesGanar += cuota.montoInteres || 0;
+                        if(!cuota.eliminado && cuota.cobrado) interesCobrado += cuota.montoInteres || 0;
+                    }
+                }
+                let tieneVencida = false;
+                for(let cuota of (credito.cuotas || [])){
+                    if(cuota.eliminado) continue;
+                    if(!cuota.cobrado && cuota.vencimiento && String(cuota.vencimiento).substring(0, 7) === mes){
+                        cuotasVencidas++;
+                        tieneVencida = true;
+                    }
+                }
+                if(tieneVencida) clientesConVencidas++;
+                for(let cobro of (credito.cobros || [])){
+                    if(cobro.eliminado) continue;
+                    if(String(cobro.createdAt || "").substring(0, 7) === mes){
+                        punitoriosCobrados += cobro.montoPunitorios || 0;
+                        margenBeneficios += (cobro.montoInteres || 0) + (cobro.montoPunitorios || 0);
+                    }
+                }
+            }
+
+            let rows = [
+                ["Créditos dados en el mes", totalCreditos],
+                ["Cuotas vencidas en el mes", cuotasVencidas],
+                ["Cuotas vencidas en el mes (1 por cliente)", clientesConVencidas],
+                ["Monto prestado en el mes", "$" + utils.formatNumber(utils.decimals(montoTotalPrestado, 2))],
+                ["Capital a recuperar en el mes", "$" + utils.formatNumber(utils.decimals(capitalRecuperar, 2))],
+                ["Capital recuperado en el mes", "$" + utils.formatNumber(utils.decimals(capitalRecuperado, 2))],
+                ["Interés a ganar en el mes", "$" + utils.formatNumber(utils.decimals(interesGanar, 2))],
+                ["Interés cobrado en el mes", "$" + utils.formatNumber(utils.decimals(interesCobrado, 2))],
+                ["Punitorios cobrados en el mes", "$" + utils.formatNumber(utils.decimals(punitoriosCobrados, 2))],
+                ["Margen de beneficios en el mes", "$" + utils.formatNumber(utils.decimals(margenBeneficios, 2))],
+            ];
+            $("#modal #tabla-resumen-mensual tbody").html(
+                rows.map(([d, v]) => `<tr><td>${d}</td><td class="text-right">${v}</td></tr>`).join("")
+            );
+        };
+
+        llenarGeneral();
+        llenarMensual(mesActual);
+
+        $("#modal [name='mes']").on("change", ev => {
+            let m = $(ev.currentTarget).val();
+            if(m) llenarMensual(m);
+        });
     }
 }

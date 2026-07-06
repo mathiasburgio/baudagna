@@ -257,22 +257,22 @@
     function llenarDatos() {
         // Fechas y Cabecera
         document.querySelector("#fechaActual").innerHTML = fechasTemporal.toString(new Date(), "arg");
-        document.querySelector("#fechaCobro").innerHTML = fechasTemporal.toString(data.cobro.fecha, "arg");
-        document.querySelector("#nroRecibo").innerHTML = data.recibo.numero;
+        document.querySelector("#fechaCobro").innerHTML = new Date(data.cobro.createdAt).toLocaleDateString();
+        document.querySelector("#nroRecibo").innerHTML = data.cobro.reciboNumero;
         document.querySelector("#nroCredito").innerHTML = data.credito.numero;
         document.querySelector("#nroCuota").innerHTML = data.cuota.numero;
-        document.querySelector("#vtoProximo").innerHTML = data.cuota.proximoVencimiento || '-';
-        document.querySelector("#medioPago").innerHTML = data.cobro.caja;
+        document.querySelector("#vtoProximo").innerHTML = data.credito.proximoVencimiento ? new Date(data.credito.proximoVencimiento).toLocaleDateString() : '-';
+        document.querySelector("#medioPago").innerHTML = data.cobro.metodo || '-';
         
         // Cliente
         document.querySelector("#clienteNombre").innerHTML = data.credito.datosGenerales["datos-personales-apellidos"] + ", " + data.credito.datosGenerales["datos-personales-nombres"];
         document.querySelector("#clienteDoc").innerHTML = (data.credito.datosGenerales["datos-personales-tipo-documento"] + " " + data.credito.datosGenerales["datos-personales-numero-documento"]).trim() || "-";
-        document.querySelector("#clienteDireccion").innerHTML = data.credito.datosGenerales["datos-personales-direccion"] || "-";
-        document.querySelector("#clienteLocalidad").innerHTML = data.credito.datosGenerales["datos-personales-localidad"] || "-";
-        document.querySelector("#clienteTel").innerHTML = data.credito.datosGenerales["datos-personales-telefono"] || "-";
+        document.querySelector("#clienteDireccion").innerHTML = data.credito.datosGenerales?.["datos-personales-direccion"] || "-";
+        document.querySelector("#clienteLocalidad").innerHTML = data.credito.datosGenerales?.["datos-personales-localidad"] || "-";
+        document.querySelector("#clienteTel").innerHTML = data.credito.datosGenerales?.["datos-personales-telefono"] || "-";
 
         // Monto en letras
-        document.querySelector("#montoLetras").innerHTML = numeroALetras(Number(data.cobro.montoCuota) + Number(data.cobro.montoPunitorios));
+        document.querySelector("#montoLetras").innerHTML = numeroALetras(parseInt(data.cobro.monto));
 
         //Tabla
         const agregarFila = (desc, moneda, importe) => {
@@ -286,7 +286,7 @@
             $("#tablaConceptos").append(fox);
         };
 
-        agregarFila(`Monto cuota núm ${data.cuota.numero} con vencimiento ${fechasTemporal.toString(data.cuota.vencimiento, "arg")}`, "ARS", data.cobro?.montoCuota || 0);
+        agregarFila(`Monto cuota núm ${data.cuota.numero} con vencimiento ${fechasTemporal.toString(data.cuota.vencimiento, "arg")}`, "ARS", (data.cobro?.monto - (data.cobro?.montoPunitorios || 0)));
         //agregarFila("Intereses Compensatorios", "ARS", data.cuota.montoInteres);
         agregarFila(`Punitorios por Mora (${data.cobro?.diasPunitorios || 0} días)`, "ARS", data.cobro?.montoPunitorios || 0);
 
@@ -294,7 +294,7 @@
         /* document.querySelector("#subtotalCuota").innerHTML = `$ ${sumaCapital.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
         document.querySelector("#totalIntereses").innerHTML = `$ ${sumaIntereses.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
         document.querySelector("#totalMora").innerHTML = `$ ${sumaMora.toLocaleString('es-AR', {minimumFractionDigits: 2})}`; */
-        document.querySelector("#totalAbonado").innerHTML = `$ ${utils.formatNumber(data.cobro.montoCuota + data.cobro.montoPunitorios)}`;
+        document.querySelector("#totalAbonado").innerHTML = `$ ${utils.formatNumber(data.cobro.monto)}`;
         
         //document.querySelector("#saldoPendiente").innerHTML = `$ ${data.saldos.saldoRestante.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
     }
@@ -302,6 +302,7 @@
     async function obtenerDatos(){
         let params = new URLSearchParams(window.location.search);
         let cuotaId = params.get("cuotaId");
+        let cobroId = params.get("cobroId");
         let creditoId = params.get("creditoId");
         console.log({cuotaId, creditoId});
 
@@ -310,15 +311,17 @@
             return;
         }
 
-        let credito = await $.get("/dashboard/creditos-personales/obtener-credito/" + creditoId);
+        let credito = await $.get("/creditos-personales/obtener-credito/" + creditoId);
         if(!credito) return modal.message("Crédito no encontrado");
-        console.log(credito);
-        /* let cuota = credito.cuotas.find(c => c._id == cuotaId);
-        let cobro = credito.cobros.find(c => c._id == cuotaId);
+        
+        let cuota = cuotaId ? credito.cuotas.find(c => c._id == cuotaId) : null;
+        let cobro = cobroId ? credito.cobros.find(c => c._id == cobroId) : null;
+        if(!cobro && cuota) cobro = credito.cobros.find(c => c.cuotaId == cuota._id);
+        if(!cuota && cobro) cuota = credito.cuotas.find(c => c._id == cobro.cuotaId);
+        console.log({credito, cuota, cobro});
 
-        console.log({recibo, credito, cuota, cobro});
-        data = {recibo, credito, cuota, cobro};
-        llenarDatos(); */
+        data = { credito, cuota, cobro };
+        llenarDatos(); 
     }
     function numeroALetras(numero) {
         let aux = window.NumerosALetras(numero).toLowerCase();

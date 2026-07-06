@@ -18,6 +18,7 @@ const creditoPersonalSchema = new mongoose.Schema({
     },
     cobros: [{
         cuotaId: mongoose.Schema.Types.ObjectId,
+        reciboNumero: Number, //numero correlativo del recibo
         detalle: String,
         metodo: String, //efectivo, transferencia, tarjeta, etc
         monto: Number, //monto total del cobro (cuota + punitorios)
