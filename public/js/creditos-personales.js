@@ -151,14 +151,17 @@ class CreditosPersonales{
         $("#btnAgregarCuota").on("click", async (e)=>{
             if(!this.creditoActual) return modal.message("Debe seleccionar un crédito para poder agregar una cuota.");
             if(this.creditoActual.length <= 0) return modal.message("Debe generar las cuotas antes de poder agregar una cuota manualmente.");
+            let confirm = await modal.yesno("¿Confirma agregar cuota?");
+            if(!confirm) return;
+
             try{
                 let data = {
                     numero: this.creditoActual?.cuotas?.length + 1,
                     vencimiento: fechasTemporal.toString(),
-                    monto: this.creditoActual.cuotas[0]?.monto,
-                    montoCapital: this.creditoActual.cuotas[0]?.montoCapital,
-                    montoInteres: this.creditoActual.cuotas[0]?.montoInteres,
-                    tasaInteres: this.creditoActual.cuotas[0]?.tasaInteres,
+                    monto: 1000,
+                    montoCapital: 0,
+                    montoInteres: 1000,
+                    tasaInteres: 0,
                     cobrado: false,
                     eliminado: false
                 }
@@ -174,6 +177,7 @@ class CreditosPersonales{
                 menu.toast({level: "success", message: "Cuota agregada con éxito"});
                 this.modalCuota(nueva);
             }catch(e){
+                modal.message("Error al agregar cuota: " + (e.response?.text || e.toString()));
             }
         });
 
@@ -187,6 +191,10 @@ class CreditosPersonales{
         $("#btnResumenGeneral").on("click", ev=>{
             this.modalResumen();
         })
+
+        $("#btnResumenCaja").on("click", ev=>{
+            this.modalResumenCaja();
+        });
 
         this.ordenarListado();
         this.listarCreditos();
@@ -379,16 +387,21 @@ class CreditosPersonales{
             .forEach(c=>{
                 if(tbody.length > 300) return;
                 let detalle = c.finalidad["finalidad-tipo"];
-                if(c.finalidad["finalidad-tipo"] == "vehiculo" && c.finalidad?.["finalidad-vehiculo"]) detalle += " " + (c.finalidad["finalidad-vehiculo"] || "");
-                if(c.finalidad["finalidad-tipo"] == "vivienda" && c.finalidad?.["finalidad-vivienda"]) detalle += " " + (c.finalidad["finalidad-vivienda-accion"] || "");
-                if(c.finalidad["finalidad-tipo"] == "general" && c.finalidad?.["finalidad-detalle-general"]) detalle += " " + (c.finalidad["finalidad-detalle-general"].substring(0, 10) + "..." || "");
+                if(c.finalidad["finalidad-tipo"] == "vehiculo" && c.finalidad?.["finalidad-vehiculo-tipo"]) detalle += " - " + (c.finalidad["finalidad-vehiculo-tipo"] || "");
+                if(c.finalidad["finalidad-tipo"] == "vivienda" && c.finalidad?.["finalidad-vivienda-accion"]) detalle += " - " + (c.finalidad["finalidad-vivienda-accion"] || "");
+                if(c.finalidad["finalidad-tipo"] == "general" && c.finalidad?.["finalidad-detalle-general"]) detalle += " - " + (c.finalidad["finalidad-detalle-general"].substring(0, 10) + "..." || "");
                 
+                let dif = fechasTemporal.diffDays(new Date(), c.proximoVencimiento);
+                let color = "bg-light";
+                if(dif < 0) color = "bg-danger";
+                else if(dif <= 7) color = "bg-warning";
+
                 tbody.push(`<tr credito-id="${c._id}" class="cp">
                     <td>${c.numero}</td>
                     <td>${c.datosGenerales["datos-personales-apellidos"]} ${c.datosGenerales["datos-personales-nombres"]}</td>
                     <td>${c.datosGenerales["direccion-localidad"]}</td>
                     <td>${detalle}</td>
-                    <td>${c?.proximoVencimiento ? fechasTemporal.toString(c.proximoVencimiento, "arg") : ""}</td>
+                    <td class='${color}'>${c?.proximoVencimiento ? fechasTemporal.toString(c.proximoVencimiento, "arg") : ""} ${dif < 7 ? "<small>(" + dif + " días)</small>" : ""}</td>
                 </tr>`);
             });
 
@@ -399,7 +412,7 @@ class CreditosPersonales{
             this.limpiar();
             let tr = $(e.currentTarget);
             let creditoId = tr.attr("credito-id");
-            this.creditoActual = this.listado.find(c=>c._id == creditoId);
+                this.creditoActual = this.listado.find(c=>c._id == creditoId);
             console.log(this.creditoActual);
             this.accion = "modificar";
             $("#lblAccion").html("Mod: #" + this.creditoActual.numero + " - " + (this.creditoActual.datosGenerales["datos-personales-apellidos"] + " " + this.creditoActual.datosGenerales["datos-personales-nombres"]).substring(0, 15) + "...");
@@ -429,10 +442,15 @@ class CreditosPersonales{
                 let row = $(this);
                 let creditoId = row.attr("credito-id");
                 let credito = creditosPersonales.listado.find(c=>c._id == creditoId);
+                let detalle = credito.finalidad["finalidad-tipo"];
+                if(credito.finalidad["finalidad-tipo"] == "vehiculo" && credito.finalidad?.["finalidad-vehiculo-tipo"]) detalle += " - " + (credito.finalidad["finalidad-vehiculo-tipo"] || "");
+                if(credito.finalidad["finalidad-tipo"] == "vivienda" && credito.finalidad?.["finalidad-vivienda-accion"]) detalle += " - " + (credito.finalidad["finalidad-vivienda-accion"] || "");
+                if(credito.finalidad["finalidad-tipo"] == "general" && credito.finalidad?.["finalidad-detalle-general"]) detalle += " - " + (credito.finalidad["finalidad-detalle-general"] || "");
+
                 let contenido = `
                 <div class="text-left">
                     <b>Crédito #${credito.numero}</b><br>
-                    <b>Detalle: </b>${credito.finalidad["finalidad-tipo"] || ""} ${credito.finalidad["finalidad-vehiculo"] || ""} ${credito.finalidad["finalidad-vivienda"] || ""} ${credito.finalidad["finalidad-detalle-general"] || ""}<br>
+                    <b>Detalle: </b>${detalle}<br>
                 </div>`;
                 return contenido;
             }
@@ -460,6 +478,7 @@ class CreditosPersonales{
         
         //CUOTAS
         $("#tabla-cuotas tbody").html("");
+        $("#tabla-cuotas tfoot").html("");
         $("#lblAccion").html("...");
 
     }
@@ -648,6 +667,56 @@ class CreditosPersonales{
             let cuota = this.creditoActual.cuotas.find(c=>c._id == cuotaId);
             this.modalCuota(cuota);
         });
+
+        let acumuladores = this.creditoActual.cuotas.reduce((acc, cuota)=>{
+            if(cuota.eliminado) return acc;
+            acc.montoTotal = (acc.montoTotal || 0) + cuota.monto;
+            acc.cantidad = (acc.cantidad || 0) + 1;
+            if(cuota.cobrado){
+                acc.montoCobrado = (acc.montoCobrado || 0) + cuota.monto;
+                acc.cantidadCobrada = (acc.cantidadCobrada || 0) + 1;
+            }else{
+                acc.montoPendiente = (acc.montoPendiente || 0) + cuota.monto;
+                acc.cantidadPendiente = (acc.cantidadPendiente || 0) + 1;
+            }
+            return acc;
+        }, {});
+
+        let tfoot = `
+        <tr>
+            <td colspan='3' class='font-weight-bold text-right'>
+                Total
+            </td>
+            <td class='text-right text-monospace'>
+                ${utils.formatNumber(acumuladores.montoTotal || 0)}
+            </td>
+        </tr>
+        <tr>
+            <td colspan='3' class='font-weight-bold text-right'>
+                Cobrado
+            </td>
+            <td class='text-right text-monospace'>
+                ${utils.formatNumber(acumuladores.montoCobrado || 0)}
+            </td>
+        </tr>
+        <tr>
+            <td colspan='3' class='font-weight-bold text-right'>
+                Pendiente
+            </td>
+            <td class='text-right text-monospace'>
+                ${utils.formatNumber(acumuladores.montoPendiente || 0)}
+            </td>
+        </tr>
+        <tr>
+            <td colspan='3' class='font-weight-bold text-right'>
+                Cuotas
+            </td>
+            <td class='text-right text-monospace'>
+                ${utils.formatNumber(acumuladores.cantidadCobrada || 0)} de ${utils.formatNumber(acumuladores.cantidad || 0)}
+            </td>
+        </tr>
+        `;
+        $("#tabla-cuotas tfoot").html(tfoot);
     }
     modalCuota(cuota){
         console.log(cuota);
@@ -730,7 +799,7 @@ class CreditosPersonales{
             if(cuota.cobrado) return modal.message("No se puede eliminar una cuota que ya fue cobrada.");
 
             let ele = $(ev.currentTarget);
-            let resp = await modal.addPopover({querySelector: ele, type: "yesno", message: "¿Confirma eliminar esta cuota?"});
+            let resp = await modal.addPopover({querySelector: ele, type: "yesno", message: "Al eliminar la cuota quedará desfazado temporalmente el capital e interes prestado. ¿Confirma eliminar esta cuota?."});
             if(!resp) return;
 
             try{
@@ -957,5 +1026,49 @@ class CreditosPersonales{
             let m = $(ev.currentTarget).val();
             if(m) llenarMensual(m);
         });
+    }
+    modalResumenCaja(){
+        let registros = {};
+
+        modal.show({
+            title: "Resumen de caja",
+            body: $("#modal-resumen-caja").html(),
+            size: "lg",
+            buttons: "back"
+        });
+
+        let optCajas = window.primordial.cajas.map(c=>`<option value="${c}">${c}</option>`);
+        $("#modal [name='caja']").html(optCajas.join(""));
+
+        const buscarRegistros = async (caja) => {
+            if(!registros[caja]){
+                try{
+                    let reg = await $.get("/creditos-personales/resumen-caja", {caja: caja});
+                    registros[caja] = reg;
+                    let r = registros[caja];
+                }catch(e){
+                    console.log(e);
+                    menu.toast({level: "danger", message: "Error al buscar registros de caja. " + e.toString()});
+                    return;
+                }
+            }
+
+            let tbody = [];
+            registros[caja].forEach(r=>{
+                tbody.push(`<tr>
+                    <td>${fechasTemporal.toString(r.createdAt)}</td>
+                    <td>${r.detalle}</td>
+                    <td class='text-right'>${r.monto}</td>
+                    <td class='font-weight-bold text-right'>${r.saldo}</td>
+                </tr>`);
+            });
+            $("#modal table tbody").html(tbody.join(""));
+        }
+
+
+        $("#modal [name='caja']").on("change", ev=>{
+            const ele = $(ev.currentTarget);
+            const caja = ele.val();
+        })
     }
 }

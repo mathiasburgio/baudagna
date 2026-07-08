@@ -100,7 +100,8 @@ async function asignarCuotas(req, res){
         if(!Array.isArray(cuotas)) throw "Cuotas inválidas (debe ser un array)";
         let credito = await CreditoPersonal.findOne({_id: creditoId});
         if(!credito) throw "Crédito no encontrado";
-        if(credito?.cuotas?.some(c=>c.cobrado)) throw "No se pueden modificar las cuotas de un crédito con cobros registrados";
+        //solo permito agregar de a una cuota si es q ya se cobro alguna
+        if(cuotas.length > 1 && credito?.cuotas?.some(c=>c.cobrado)) throw "No se pueden modificar las cuotas de un crédito con cobros registrados";
         if(cuotas.length > 300) throw "Demasiadas cuotas enviadas (máximo 300)";
         if(cuotas.length > 1) credito.cuotas = [];
 
@@ -139,7 +140,7 @@ async function modificarCuota(req, res){
         res.status(500).end(e.toString());
     }
 }
-async function eliminarCuota(){
+async function eliminarCuota(req, res){
     try{
         let {creditoId, cuotaId} = req.body;
         let credito = await CreditoPersonal.findOne({_id: creditoId});
@@ -185,6 +186,17 @@ async function cobrarCuota(req, res){
         obtenerProximoVencimiento(credito);
         await credito.save();
         let cobro = credito.cobros.find(c=>c._id.toString() == cobroId.toString());
+
+        const ultimoRegistro = await Caja.findOne({caja: metodo}).sort({createdAt: -1}).lean();
+        const caja = await Caja.create({
+            caja: metodo,
+            monto: montoTotal,
+            detalle: "Cobro de cuota #" + cuota.numero + " del crédito #" + credito.numero + " (" + credito.datosGenerales?.["datos-personales-apellidos"] + " " + credito.datosGenerales?.["datos-personales-nombres"] + ")",
+            creditoId: creditoId,
+            cobroId: cobroId,
+            saldo: ultimoRegistro ? ultimoRegistro.saldo + montoTotal : montoTotal, // Esto debería ser calculado según la lógica de tu aplicación
+        });
+
         res.status(200).json({credito, cuota, cobro});
     }catch(e){
         console.error(e);
@@ -833,6 +845,8 @@ async function migrar(req, res){
 
 
 async function registrarBitacora(usuario, accion, auxiliar=null){
+    return true;
+
     const bitacoraEntry = await bitacora.create({
         accion: accion,
         usuario: usuario || "Desconocido",

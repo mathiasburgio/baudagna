@@ -28,6 +28,7 @@
                                 <a class="dropdown-item" id="btnWhatsappProximoVencimiento" href="#">WhatsApp (próximo vencimiento)</a>
                                 <div class="dropdown-divider"></div>
                                 <a class="dropdown-item" id="btnResumenGeneral" href="#">Resumen general</a>
+                                <a class="dropdown-item" id="btnResumenCaja" href="#">Resumen caja</a>
                             </div>
                         </div>
                     </div>
@@ -241,6 +242,7 @@
 
                         <div class="text-right">
                             <button class="btn btn-flat btn-primary" id="btnGuardarCredito">Guardar</button>
+                            <button class="btn btn-flat btn-primary" id="btnGuardarCredito">Guardar</button>
                         </div>
                     </div>
                     <div class="tab-pane fade" id="finalidad" role="tabpanel" aria-labelledby="tab-finalidad">
@@ -322,11 +324,12 @@
                         </div>
                     </div>
                     <div class="tab-pane fade" id="cuotas" role="tabpanel" aria-labelledby="tab-cuotas">
-                        <div class="row">
+                        <div class="row  mb-2">
                             <div class="col">
-                                <button class="btn btn-flat btn-primary btn-sm mb-2" id="btnGenerarCuotas">Generar cuotas</button>
+                                <button class="btn btn-flat btn-primary btn-sm" id="btnGenerarCuotas">Generar cuotas</button>
+                                <button class="btn btn-flat btn-primary btn-sm" id="btnAgregarCuota"><i class="fas fa-plus"></i> Agregar cuota</button>
                             </div>
-                            <div class="col text-right">
+                            <div class="col-auto text-right">
                                 <span class="badge badge-light" id="btnOrdenCuotas">Orden: Número</span>
                                 <!-- <button class="btn btn-flat btn-primary btn-sm mb-2" name="listar-cobros">Listar cobros</button> -->
                             </div>
@@ -342,13 +345,7 @@
                                     </tr>
                                 </thead>
                                 <tbody></tbody>
-                                <tfoot>
-                                    <tr>
-                                        <td colspan="100%" class="text-center">
-                                            <button class="btn btn-flat btn-primary" id="btnAgregarCuota"><i class="fas fa-plus"></i> Agregar cuota</button>
-                                        </td>
-                                    </tr>
-                                </tfoot>
+                                <tfoot class="table-info"></tfoot>
                             </table>
                         </div>
                     </div>                   
@@ -623,6 +620,58 @@
                 </thead>
                 <tbody></tbody>
             </table>
+        </div>
+    </div>
+    <div id="modal-resumen-caja">
+        <div class="row">
+            <div class="col-8">
+                <div class="titulo">Registros</div>
+                <div class="form-group">
+                    <label for="">Caja/Método</label>
+                    <select class="form-control" name="caja"></select>
+                </div>
+                <div class="border" style="min-height:40vh; overflow-y:scroll">
+                    <table class="table table-sm mb-0" id="tabla-resumen-caja">
+                        <thead class="thead-dark">
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Detalle</th>
+                                <th class="text-right">Monto</th>
+                                <th class="text-right">Saldo</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="col-4">
+                <div class="titulo">Agregar registro</div>
+                <div class="form-group">
+                    <label for="">Caja/Método</label>
+                    <select class="form-control" name="caja"></select>
+                </div>
+                <div class="row">
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="">Monto</label>
+                            <input type="number" class="form-control" id="monto">
+                        </div>
+                    </div>
+                    <div class="col">
+                        <div class="form-group">
+                            <label for="">Nuevo saldo</label>
+                            <input type="text" class="form-control" readonly id="nuevo-saldo">
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="">Detalle</label>
+                    <input type="text" class="form-control" id="detalle">
+                </div>
+                <div class="text-center">
+                    <button class="btn btn-primary btn-flat" id="registrar">Registrar</button>
+                </div>
+            </div>
         </div>
     </div>
 </div>
