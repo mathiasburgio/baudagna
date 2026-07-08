@@ -1,6 +1,5 @@
 const CreditoPersonal = require("../models/credito-personal-model");
 const bitacora = require("../models/bitacora-model");
-const Recibo = require("../models/recibo-model");
 const utils = require("../utils/utils");
 const {FechasTemporal} = require("../utils/FechasTemporal");
 const {ObjectId} = require("mongodb");
