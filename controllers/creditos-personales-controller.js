@@ -1,4 +1,5 @@
 const CreditoPersonal = require("../models/credito-personal-model");
+const Caja = require("../models/caja-model");
 const bitacora = require("../models/bitacora-model");
 const utils = require("../utils/utils");
 const {FechasTemporal} = require("../utils/FechasTemporal");
@@ -30,6 +31,60 @@ async function obtenerCredito(req, res){
         res.status(500).end(e.toString());
     }
 }
+async function resumenCaja(req, res){
+    try{
+        const caja = (req.query.caja || "").trim();
+        if(!caja) throw "Debe indicar una caja";
+
+        const registros = await Caja.find({caja})
+            .sort({createdAt: -1})
+            .limit(100)
+            .lean();
+        res.status(200).json(registros);
+    }catch(e){
+        console.error(e);
+        res.status(500).end(e.toString());
+    }
+}
+async function registrarMovimientoCaja(req, res){
+    try{
+        const {caja, tipo, monto, detalle} = req.body;
+        const nombreCaja = (caja || "").trim();
+        const tipoMovimiento = (tipo || "").trim().toLowerCase();
+        const importe = Number(monto);
+        const descripcion = (detalle || "").trim();
+
+        if(!nombreCaja) throw "Debe seleccionar una caja";
+        if(!["ingreso", "egreso"].includes(tipoMovimiento)) throw "Tipo de movimiento inválido";
+        if(!Number.isFinite(importe) || importe <= 0) throw "El monto debe ser mayor a cero";
+        if(!descripcion) throw "Debe ingresar un detalle";
+
+        const configuracion = await req.getPrimordial(req);
+        if(!configuracion.cajas?.includes(nombreCaja)) throw "La caja seleccionada no es válida";
+
+        const montoFirmado = tipoMovimiento === "egreso" ? -importe : importe;
+        const ultimoRegistro = await Caja.findOne({caja: nombreCaja}).sort({createdAt: -1}).lean();
+        const movimiento = await Caja.create({
+            caja: nombreCaja,
+            monto: montoFirmado,
+            detalle: descripcion,
+            saldo: (ultimoRegistro?.saldo || 0) + montoFirmado,
+            origen: "manual"
+        });
+
+        await registrarBitacora(req.session?.data?.usuario?.email, "registrar_movimiento_caja", {
+            caja: nombreCaja,
+            tipo: tipoMovimiento,
+            monto: montoFirmado,
+            detalle: descripcion,
+            movimientoCajaId: movimiento._id
+        });
+        res.status(200).json(movimiento);
+    }catch(e){
+        console.error(e);
+        res.status(500).end(e.toString());
+    }
+}
 async function nuevo(req, res){
     try{
         let datos = req.body;
@@ -42,7 +97,7 @@ async function nuevo(req, res){
             eliminado: false,
         });
 
-        registrarBitacora(req.session?.data?.usuario?.email, "nuevo_credito", {creditoId: credito._id, numero: credito.numero});
+        await registrarBitacora(req.session?.data?.usuario?.email, "nuevo_credito", {creditoId: credito._id, numero: credito.numero});
         res.status(200).json(credito);
     }catch(e){
         console.error(e);
@@ -71,6 +126,12 @@ async function modificar(req, res){
         }else{
             throw "Datos inválidos";
         }
+        await registrarBitacora(req.session?.data?.usuario?.email, "modificar_credito", {
+            creditoId: credito._id,
+            numero: credito.numero,
+            tipoDato,
+            campos: Object.keys(datos)
+        });
         console.log("Credito modificado", creditoId, tipoDato, datos);
         res.status(200).json(credito);
     }catch(e){
@@ -83,10 +144,15 @@ async function eliminar(req, res){
         let {creditoId} = req.body;
         let credito = await CreditoPersonal.findOne({_id: creditoId});
         if(!credito) throw "Crédito no encontrado";
+        const tieneCobros = credito.cobros.some(cobro => cobro.eliminado !== true);
+        const tieneCuotasCobradas = credito.cuotas.some(cuota => cuota.cobrado === true && cuota.eliminado !== true);
+        if(tieneCobros || tieneCuotasCobradas){
+            throw "No se puede eliminar un crédito que tiene cobros registrados";
+        }
         credito.eliminado = true;
         await credito.save();
 
-        registrarBitacora(req.session?.data?.usuario?.email, "eliminar_credito", {creditoId: credito._id, numero: credito.numero});
+        await registrarBitacora(req.session?.data?.usuario?.email, "eliminar_credito", {creditoId: credito._id, numero: credito.numero});
         res.status(200).json(credito);
     }catch(e){
         console.error(e);
@@ -115,6 +181,12 @@ async function asignarCuotas(req, res){
 
         obtenerProximoVencimiento(credito);
         await credito.save();
+        await registrarBitacora(req.session?.data?.usuario?.email, "asignar_cuotas", {
+            creditoId: credito._id,
+            numero: credito.numero,
+            cantidadCuotas: cuotas.length,
+            reemplazaPlan: cuotas.length > 1
+        });
         res.status(200).json({credito, cuotas});
     }catch(e){
         console.error(e);
@@ -132,6 +204,12 @@ async function modificarCuota(req, res){
 
         obtenerProximoVencimiento(credito);
         await credito.save();
+        await registrarBitacora(req.session?.data?.usuario?.email, "modificar_cuota", {
+            creditoId: credito._id,
+            numeroCredito: credito.numero,
+            cuotaId,
+            campos: Object.keys(cuota)
+        });
         console.log(creditoId, cuotaId, cuota);
         res.status(200).json({credito, cuota});
     }catch(e){
@@ -158,21 +236,38 @@ async function eliminarCuota(req, res){
 }
 async function cobrarCuota(req, res){
     try{
-        const {creditoId, cuotaId, montoTotal, montoCapital, montoInteres, montoPunitorios, diasMora, metodo, detalle} = req.body;
+        const {creditoId, cuotaId, montoCuota, montoPunitorios, diasMora, metodo, detalle} = req.body;
         let credito = await CreditoPersonal.findOne({_id: creditoId, eliminado: {$ne: true}});
         if(!credito) throw "Crédito no encontrado";
         let cuota = credito.cuotas.find(c => c._id.toString() == cuotaId);
         if(!cuota) throw "Cuota no encontrada";
         if(cuota.eliminado) throw "No se pueden cobrar una cuota eliminada";
+        if(cuota.cobrado) throw "Cuota ya cobrada";
+
+        const montoOriginalCuota = Number(cuota.monto);
+        const importeCuotaCobrado = Number(montoCuota);
+        const importePunitorios = Number(montoPunitorios) || 0;
+        if(!Number.isFinite(importeCuotaCobrado) || importeCuotaCobrado <= 0) throw "El importe de la cuota debe ser mayor a cero";
+        if(importeCuotaCobrado > montoOriginalCuota) throw "El importe no puede ser superior al monto original de la cuota";
+        if(!Number.isFinite(importePunitorios) || importePunitorios < 0) throw "Los punitorios no son válidos";
+
+        const esCobroParcial = importeCuotaCobrado < montoOriginalCuota;
+        const montoCapitalOriginal = Number(cuota.montoCapital) || 0;
+        if(esCobroParcial && importeCuotaCobrado < montoCapitalOriginal){
+            throw "El cobro parcial no puede ser menor al capital de la cuota";
+        }
+
+        const montoInteresCobrado = Number((importeCuotaCobrado - montoCapitalOriginal).toFixed(2));
+        const montoTotal = Number((importeCuotaCobrado + importePunitorios).toFixed(2));
         let cobroId = new ObjectId();
         credito.cobros.push({
             _id: cobroId,
             reciboNumero: await req.setContador("recibo", "incr"),
             cuotaId: cuotaId,
             monto: montoTotal, //total
-            montoCapital: montoCapital,
-            montoInteres: montoInteres,
-            montoPunitorios: montoPunitorios,
+            montoCapital: montoCapitalOriginal,
+            montoInteres: montoInteresCobrado,
+            montoPunitorios: importePunitorios,
             diasMora: diasMora,
             metodo: metodo,
             detalle: detalle,
@@ -180,6 +275,21 @@ async function cobrarCuota(req, res){
             createdAt: new Date(), //guarda un date no "temporal"
         });
 
+        if(esCobroParcial){
+            const montoPendiente = Number((montoOriginalCuota - importeCuotaCobrado).toFixed(2));
+            cuota.monto = importeCuotaCobrado;
+            cuota.montoInteres = montoInteresCobrado;
+            credito.cuotas.push({
+                numero: cuota.numero,
+                vencimiento: cuota.vencimiento,
+                monto: montoPendiente,
+                montoCapital: 0,
+                montoInteres: montoPendiente,
+                tasaInteres: cuota.tasaInteres,
+                cobrado: false,
+                eliminado: false,
+            });
+        }
         cuota.cobrado = true;
         cuota.cobroId = cobroId;
         obtenerProximoVencimiento(credito);
@@ -196,6 +306,19 @@ async function cobrarCuota(req, res){
             saldo: ultimoRegistro ? ultimoRegistro.saldo + montoTotal : montoTotal, // Esto debería ser calculado según la lógica de tu aplicación
         });
 
+        await registrarBitacora(req.session?.data?.usuario?.email, "cobrar_cuota", {
+            creditoId: credito._id,
+            numeroCredito: credito.numero,
+            cuotaId: cuota._id,
+            numeroCuota: cuota.numero,
+            cobroId,
+            cajaId: caja._id,
+            metodo,
+            montoCuota: importeCuotaCobrado,
+            montoPunitorios: importePunitorios,
+            montoTotal,
+            esCobroParcial
+        });
         res.status(200).json({credito, cuota, cobro});
     }catch(e){
         console.error(e);
@@ -210,8 +333,13 @@ async function obtenerUltimoVencimiento(cuota){
 }
 
 function obtenerProximoVencimiento(credito){
-    //calculo proximo vencimiento
-    credito.cuotas.sort((a, b) => a.vencimiento - b.vencimiento);
+    // Las fechas se guardan como strings ISO (YYYY-MM-DD), por lo que se comparan lexicográficamente.
+    // Las cuotas sin vencimiento quedan al final para no interferir con el próximo vencimiento real.
+    credito.cuotas.sort((a, b) => {
+        const vencimientoA = a.vencimiento || "9999-12-31";
+        const vencimientoB = b.vencimiento || "9999-12-31";
+        return vencimientoA.localeCompare(vencimientoB);
+    });
     let primeraEnVenceser = credito.cuotas.find(c=>c.cobrado != true && c.eliminado != true);
     credito.proximoVencimiento = primeraEnVenceser ? primeraEnVenceser.vencimiento : null;
 }
@@ -330,12 +458,20 @@ async function eliminarCuota(req, res){
         let cuota = credito.cuotas.find(c => c._id.toString() == cuotaId);
         if(!cuota) throw "Cuota no encontrada";
         if(cuota.cobrado) throw "No se pueden eliminar una cuota ya cobrada";
+        const numeroCuota = cuota.numero;
         cuota.eliminado = true;
         await credito.save();
 
         let proximaCuota = credito.cuotas.find(c=>c?.eliminado != true && c.cobrado != true);
         credito.proximoVencimiento = proximaCuota ? proximaCuota.vencimiento : null;
         await credito.save();
+
+        await registrarBitacora(req.session?.data?.usuario?.email, "eliminar_cuota", {
+            creditoId: credito._id,
+            numeroCredito: credito.numero,
+            cuotaId,
+            numeroCuota
+        });
 
         res.status(200).json(credito);
     }catch(e){
@@ -844,20 +980,25 @@ async function migrar(req, res){
 
 
 async function registrarBitacora(usuario, accion, auxiliar=null){
-    return true;
-
-    const bitacoraEntry = await bitacora.create({
-        accion: accion,
-        usuario: usuario || "Desconocido",
-        auxiliar: JSON.stringify(auxiliar)
-    });
-    return true;
+    try{
+        await bitacora.create({
+            accion,
+            usuario: usuario || "Desconocido",
+            auxiliar: JSON.stringify(auxiliar)
+        });
+        return true;
+    }catch(e){
+        console.error("Error al registrar bitácora:", e);
+        return false;
+    }
 }
 
 module.exports = {
     html,
     listado,
     obtenerCredito,
+    resumenCaja,
+    registrarMovimientoCaja,
     nuevo,
     modificar,
     eliminar,

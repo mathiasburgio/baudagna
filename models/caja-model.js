@@ -10,6 +10,7 @@ const cajaSchema = new mongoose.Schema({
     creditoId: oid,
     cobroId: oid,
     saldo: Number,
+    origen: String,
 }, { timestamps: true });
 
 module.exports = mongoose.model("Caja", cajaSchema);

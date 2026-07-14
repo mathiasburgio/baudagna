@@ -469,4 +469,27 @@ class Utils{
             }
         }
     }
+    smallSimpleNumber($inp){
+        const actualizar = e=>{
+            const ele = $(e.currentTarget);
+            const contenedor = ele.closest(".form-group");
+            let small = contenedor.children("small.small-simple-number");
+            const valor = ele.val();
+
+            if(valor === ""){
+                small.remove();
+                return;
+            }
+            if(!small.length){
+                small = $("<small class='text-muted small-simple-number'></small>");
+                contenedor.append(small);
+            }
+            small.text(this.formatNumber(valor));
+        };
+
+        $inp
+            .off("input.smallSimpleNumber change.smallSimpleNumber smallSimpleNumber")
+            .on("input.smallSimpleNumber change.smallSimpleNumber smallSimpleNumber", actualizar)
+            .each((_, input) => actualizar({currentTarget: input}));
+    }
 }

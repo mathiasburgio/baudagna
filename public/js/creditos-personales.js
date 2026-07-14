@@ -196,6 +196,10 @@ class CreditosPersonales{
             this.modalResumenCaja();
         });
 
+        $("#btnExportarExcel").on("click", ev=>{
+            this.exportarExcel();
+        });
+
         this.ordenarListado();
         this.listarCreditos();
         menu.hideCortina();
@@ -217,9 +221,9 @@ class CreditosPersonales{
             });
         }else if(this.ordenListado == "próximo vencimiento"){
             this.listado.sort((a, b)=>{
-                if(a.proximoVencimiento > b.proximoVencimiento) return 1;
-                if(a.proximoVencimiento < b.proximoVencimiento) return -1;
-                return 0;
+                const vencimientoA = a.proximoVencimiento || "9999-12-31";
+                const vencimientoB = b.proximoVencimiento || "9999-12-31";
+                return vencimientoA.localeCompare(vencimientoB);
             });
         }
     }
@@ -237,6 +241,7 @@ class CreditosPersonales{
 
         const resp = await modal.yesno("¿Confirma eliminar este crédito?");
         if(!resp) return;
+        try{
         await $.post("/creditos-personales/eliminar", {creditoId: this.creditoActual._id});
         this.listado = this.listado.filter(c=>c._id != this.creditoActual._id);
         this.accion = null;
@@ -244,6 +249,9 @@ class CreditosPersonales{
         this.limpiar();
         this.listarCreditos(true);
         menu.toast({level: "success", message: "Crédito eliminado con éxito"});
+        }catch(e){
+            menu.toast({level: "danger", message: e?.responseText || "No se pudo eliminar el crédito"});
+        }
     }
     async guardar(){
         if(this.accion != "nuevo" && this.accion != "modificar") return modal.message("No hay acción (modificar, nuevo) para guardar.");
@@ -498,6 +506,14 @@ class CreditosPersonales{
         });
 
         $("#modal [name='fecha-primer-vencimiento']").val(fechasTemporal.toString());
+        // modal.show inserta solamente el contenido interno de #modal-generar-cuotas,
+        // por lo que ese id no existe dentro del modal visible.
+        const $numerosCuotas = $("#modal .modal-body input[type='number']");
+        const actualizarNumerosCuotas = () => $numerosCuotas.trigger("smallSimpleNumber");
+        utils.smallSimpleNumber($numerosCuotas);
+        $("#modal .modal-body").on("input change", "input[type='number']", () => {
+            setTimeout(actualizarNumerosCuotas, 0);
+        });
         $("#modal [name='monto-solicitado']").on("change", ev=>{
             let $ele = $(ev.currentTarget);
             let v = $ele.val();
@@ -624,7 +640,8 @@ class CreditosPersonales{
                 menu.toast({level: "success", message: "Cuotas generadas con éxito"});
                 this.listarCreditos();
                 this.listarCuotas();
-                modal.hide();
+                await modal.hide(true);
+                await modal.message("Recuerde acreditar manualmente la salida del dinero en la caja correspondiente para que el saldo se vea reflejado correctamente.");
             }catch(e){
                 menu.toast({level: "danger", message: e.toString()});
             }finally{
@@ -721,6 +738,8 @@ class CreditosPersonales{
     modalCuota(cuota){
         console.log(cuota);
         let cobro = null; //guardo si la cuota tiene un cobro asociado
+        const montoOriginalCuota = Number(cuota.monto) || 0;
+        let montoCobroCuota = montoOriginalCuota;
 
         modal.show({
             title: "Editar cuota",
@@ -736,10 +755,18 @@ class CreditosPersonales{
         $("#modal [name='monto']").val(cuota.monto);
         $("#modal [name='montoCapital']").val(utils.formatNumber(cuota.montoCapital));
         $("#modal [name='montoInteres']").val(utils.formatNumber(cuota.montoInteres));
+        const $numerosCuota = $("#modal [name='monto'], #modal [name='punitorios']");
+        const actualizarNumerosCuota = () => $numerosCuota.trigger("smallSimpleNumber");
+        utils.smallSimpleNumber($numerosCuota);
         
         //cobrar imprimir
-        $("#modal [name='montoCuota']").val(utils.formatNumber(cuota.monto));
-        $("#modal [name='total']").val(utils.formatNumber(cuota.monto));
+        const actualizarTotalCobro = () => {
+            const punitorios = Number($("#modal [name='punitorios']").val()) || 0;
+            $("#modal [name='montoCuota']").val(utils.formatNumber(montoCobroCuota));
+            $("#modal [name='total']").val(utils.formatNumber(montoCobroCuota + punitorios));
+            actualizarNumerosCuota();
+        };
+        actualizarTotalCobro();
 
         let dif = fechasTemporal.diffDays(new Date(), cuota.vencimiento);
         let diasMora = 0;
@@ -750,16 +777,40 @@ class CreditosPersonales{
             let fox = aux + " x día (" + diasMora + " días)";
             $("#modal [name='lbPunitorios']").html(fox);
             $("#modal [name='punitorios']").val(totalPunitorios);
-            $("#modal [name='total']").val(utils.formatNumber(cuota.monto + totalPunitorios));
+            actualizarTotalCobro();
         }
 
         //si modifico punitoros, q no se muestre el detalle
         $("#modal [name='punitorios']").on("change", ev=>{
             let ele = $(ev.currentTarget);
             let v = ele.val();
-            let total = Number(v) + Number(cuota.monto);
-            $("#modal [name='total']").val(utils.formatNumber(total));
-            ele.parent().find("small").addClass("d-none");
+            actualizarTotalCobro();
+            ele.parent().find("small[name='lbPunitorios']").addClass("d-none");
+        });
+
+        $("#modal [name='editar-monto-cuota']").on("click", async ev=>{
+            if(cuota.cobrado) return;
+
+            const boton = $(ev.currentTarget);
+            const valor = await modal.addPopover({
+                querySelector: boton,
+                type: "input",
+                label: "Importe a cobrar",
+                inputType: "number",
+                value: montoCobroCuota
+            });
+            if(valor === null) return;
+
+            const nuevoMonto = Number(valor);
+            if(!Number.isFinite(nuevoMonto) || nuevoMonto <= 0){
+                return modal.addPopover({querySelector: boton, message: "Ingrese un importe mayor a cero."});
+            }
+            if(nuevoMonto > montoOriginalCuota){
+                return modal.addPopover({querySelector: boton, message: "El importe no puede ser superior al monto original de la cuota."});
+            }
+
+            montoCobroCuota = Number(nuevoMonto.toFixed(2));
+            actualizarTotalCobro();
         });
         
         let optMetodos = window.primordial.cajas.map(c=>`<option value="${c}">${c}</option>`);
@@ -783,6 +834,7 @@ class CreditosPersonales{
             $("#modal [name='metodo']").val(cobro.metodo);
             $("#modal [name='detalle']").val(cobro.detalle);
             $("#modal [name='punitorios']").val(utils.formatNumber(cobro.montoPunitorios));
+            $("#modal [name='editar-monto-cuota']").prop("disabled", true);
         }else{
             $("#modal [name='facturar']").prop("disabled", true);
             $("#modal [name='imp-factura']").prop("disabled", true);
@@ -862,9 +914,7 @@ class CreditosPersonales{
                 let datos = {
                     creditoId: this.creditoActual._id,
                     cuotaId: cuota._id,
-                    montoTotal: (punitorios + cuota.monto),
-                    montoCapital: cuota.montoCapital,
-                    montoInteres: cuota.montoInteres,
+                    montoCuota: montoCobroCuota,
                     montoPunitorios: punitorios,
                     diasMora: diasMora,
                     metodo: $("#modal [name='metodo']").val(),
@@ -872,10 +922,7 @@ class CreditosPersonales{
                 };
                 let resp = await $.post("/creditos-personales/cobrar-cuota", datos);
                 console.log(resp);
-                cuota.cobroId = resp.cobro._id;
-                cuota.cobrado = true;
-                if(this.creditoActual.cobros == null) this.creditoActual.cobros = [];
-                this.creditoActual.cobros.push(resp.cobro);
+                Object.assign(this.creditoActual, resp.credito);
                 this.listarCreditos();
                 this.listarCuotas();
                 menu.toast({level: "success", message: "Cuota cobrada con éxito"});
@@ -1027,8 +1074,12 @@ class CreditosPersonales{
             if(m) llenarMensual(m);
         });
     }
-    modalResumenCaja(){
-        let registros = {};
+    async modalResumenCaja(){
+        const cajas = window.primordial.cajas || [];
+        if(!cajas.length){
+            menu.toast({level: "warning", message: "No hay cajas configuradas"});
+            return;
+        }
 
         modal.show({
             title: "Resumen de caja",
@@ -1037,38 +1088,162 @@ class CreditosPersonales{
             buttons: "back"
         });
 
-        let optCajas = window.primordial.cajas.map(c=>`<option value="${c}">${c}</option>`);
-        $("#modal [name='caja']").html(optCajas.join(""));
+        const escapeHtml = (valor) => $("<div>").text(valor || "").html();
+        const opciones = cajas.map(caja => `<option value="${escapeHtml(caja)}">${escapeHtml(caja)}</option>`);
+        const $cajas = $("#modal [name='caja']");
+        const $monto = $("#modal [name='monto-caja']");
+        const $tipo = $("#modal [name='tipo-movimiento-caja']");
+        const $nuevoSaldo = $("#modal [name='nuevo-saldo-caja']");
+        const $registrar = $("#modal [name='registrar-caja']");
+        let registros = [];
+        let cajaActual = cajas[0];
 
-        const buscarRegistros = async (caja) => {
-            if(!registros[caja]){
-                try{
-                    let reg = await $.get("/creditos-personales/resumen-caja", {caja: caja});
-                    registros[caja] = reg;
-                    let r = registros[caja];
-                }catch(e){
-                    console.log(e);
-                    menu.toast({level: "danger", message: "Error al buscar registros de caja. " + e.toString()});
-                    return;
-                }
+        $cajas.html(opciones.join("")).val(cajaActual);
+
+        const actualizarFormulario = () => {
+            const esIngreso = $tipo.val() === "ingreso";
+            const monto = Number($monto.val()) || 0;
+            const saldoActual = Number(registros[0]?.saldo) || 0;
+            const saldoNuevo = saldoActual + (esIngreso ? monto : -monto);
+
+            $nuevoSaldo
+                .val(`$ ${utils.formatNumber(saldoNuevo)}`)
+                .toggleClass("text-success", esIngreso)
+                .toggleClass("text-danger", !esIngreso);
+            $monto.toggleClass("border-success", esIngreso).toggleClass("border-danger", !esIngreso);
+            $registrar
+                .removeClass("btn-success btn-danger")
+                .addClass(esIngreso ? "btn-success" : "btn-danger")
+                .text(esIngreso ? "Registrar ingreso" : "Registrar egreso");
+        };
+
+        const mostrarRegistros = () => {
+            const filas = registros.map(registro => {
+                const esIngreso = Number(registro.monto) >= 0;
+                const clase = esIngreso ? "table-success" : "table-danger";
+                const signo = esIngreso ? "+" : "-";
+                const icono = esIngreso ? "arrow-up" : "arrow-down";
+                return `<tr class="${clase}">
+                    <td>${fechasTemporal.toString(registro.createdAt, "arg")}</td>
+                    <td>${escapeHtml(registro.detalle) || "-"}</td>
+                    <td class="text-right font-weight-bold ${esIngreso ? "text-success" : "text-danger"}">
+                        <i class="fas fa-${icono}"></i> ${signo} $ ${utils.formatNumber(Math.abs(Number(registro.monto) || 0))}
+                    </td>
+                    <td class="font-weight-bold text-right">$ ${utils.formatNumber(Number(registro.saldo) || 0)}</td>
+                </tr>`;
+            });
+            $("#modal #tabla-resumen-caja tbody").html(filas.join("") || "<tr><td colspan='4' class='text-center text-muted'>No hay movimientos registrados</td></tr>");
+            actualizarFormulario();
+        };
+
+        const cargarRegistros = async (caja) => {
+            cajaActual = caja;
+            $("#modal #tabla-resumen-caja tbody").html("<tr><td colspan='4' class='text-center'>Cargando...</td></tr>");
+            try{
+                registros = await $.get("/creditos-personales/resumen-caja", {caja});
+                mostrarRegistros();
+            }catch(e){
+                registros = [];
+                mostrarRegistros();
+                menu.toast({level: "danger", message: e?.responseText || "No se pudieron obtener los registros de caja"});
+            }
+        };
+
+        $cajas.on("change", ev => {
+            const caja = $(ev.currentTarget).val();
+            $cajas.val(caja);
+            cargarRegistros(caja);
+        });
+        $tipo.on("change", actualizarFormulario);
+        $monto.on("input", actualizarFormulario);
+        $registrar.on("click", async () => {
+            const monto = Number($monto.val());
+            const detalle = $("#modal [name='detalle-caja']").val().trim();
+            const tipo = $tipo.val();
+            if(!Number.isFinite(monto) || monto <= 0){
+                menu.toast({level: "warning", message: "Ingrese un monto mayor a cero"});
+                return;
+            }
+            if(!detalle){
+                menu.toast({level: "warning", message: "Ingrese el detalle del movimiento"});
+                return;
             }
 
-            let tbody = [];
-            registros[caja].forEach(r=>{
-                tbody.push(`<tr>
-                    <td>${fechasTemporal.toString(r.createdAt)}</td>
-                    <td>${r.detalle}</td>
-                    <td class='text-right'>${r.monto}</td>
-                    <td class='font-weight-bold text-right'>${r.saldo}</td>
-                </tr>`);
-            });
-            $("#modal table tbody").html(tbody.join(""));
+            $registrar.prop("disabled", true);
+            try{
+                await $.post("/creditos-personales/registrar-caja", {caja: cajaActual, tipo, monto, detalle});
+                $monto.val("");
+                $("#modal [name='detalle-caja']").val("");
+                await cargarRegistros(cajaActual);
+                menu.toast({level: "success", message: `Se registró el ${tipo} de caja`});
+            }catch(e){
+                menu.toast({level: "danger", message: e?.responseText || "No se pudo registrar el movimiento"});
+            }finally{
+                $registrar.prop("disabled", false);
+            }
+        });
+
+        await cargarRegistros(cajaActual);
+    }
+    async exportarExcel(){
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet('Créditos Personales');
+
+        const encabezado = (cell, value, width=null) => {
+            cell.font = { bold: true }; // Texto en negrita
+            cell.fill = {
+                type: 'pattern',
+                pattern: 'solid',
+                fgColor: { argb: '579DFF' }
+            };
+            if(value) cell.value = value;
+            if(width !== null) worksheet.getColumn(cell.col).width = width;
         }
 
+        const formatearColumna = (column, format, initialRow=2) => {
+            worksheet.getColumn(column).eachCell({includeEmpty: false}, (cell, rowNumber) => {
+                if(rowNumber >= initialRow) Object.assign(cell, format);
+            });
+        }
 
-        $("#modal [name='caja']").on("change", ev=>{
-            const ele = $(ev.currentTarget);
-            const caja = ele.val();
-        })
+        encabezado( worksheet.getCell("A1"), "Cliente", 35 );
+        encabezado( worksheet.getCell("B1"), "Cuotas", 15 );
+        encabezado( worksheet.getCell("C1"), "Monto capital", 18 );
+        encabezado( worksheet.getCell("D1"), "Monto total", 18 );
+        encabezado( worksheet.getCell("E1"), "Monto cobrado", 18 );
+        encabezado( worksheet.getCell("F1"), "Monto pendiente", 18 );
+        encabezado( worksheet.getCell("G1"), "Detalle", 50 );
+
+        let filaInicial = 2;
+        let ind = 0;
+        for(let credito of this.listado){
+            let cuotasTotales = 0, cuotasCobradas = 0, montoCapital = 0, montoTotal = 0, montoCobrado = 0, montoPendiente = 0;
+            (credito?.cuotas || []).forEach(c=>{
+                if(c.eliminado) return;
+                cuotasTotales++;
+                montoCapital += c.montoCapital || 0;
+                montoTotal += c.monto || 0;
+                if(c.cobrado){
+                    cuotasCobradas++;
+                    montoCobrado += c.monto || 0;
+                }else{
+                    montoPendiente += c.monto || 0;
+                }
+            });
+            worksheet.getCell("A" + (filaInicial + ind)).value = (credito.datosGenerales?.["datos-personales-apellidos"] + " " + credito.datosGenerales?.["datos-personales-nombres"]) || "?";
+            worksheet.getCell("B" + (filaInicial + ind)).value = cuotasCobradas + " de " + cuotasTotales;
+            worksheet.getCell("C" + (filaInicial + ind)).value = montoCapital;
+            worksheet.getCell("D" + (filaInicial + ind)).value = montoTotal;
+            worksheet.getCell("E" + (filaInicial + ind)).value = montoCobrado;
+            worksheet.getCell("F" + (filaInicial + ind)).value = montoPendiente;
+            worksheet.getCell("G" + (filaInicial + ind)).value = credito.datosGenerales?.["datos-personales-detalle"] || "";
+            ind++;
+        }
+
+        const formatoMonto = {numFmt: '#,##0.00'};
+        ["C", "D", "E", "F"].forEach(column => formatearColumna(column, formatoMonto));
+
+        const blob = await workbook.xlsx.writeBuffer();
+        saveAs(new Blob([blob], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), 'creditos-personales.xlsx');
     }
 }

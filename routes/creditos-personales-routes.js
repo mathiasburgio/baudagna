@@ -43,4 +43,12 @@ router.post("/creditos-personales/cobrar-cuota",
     middlewares.verificarPermisos({level: 1}),
     creditosPersonalesController.cobrarCuota);
 
+router.get("/creditos-personales/resumen-caja",
+    middlewares.verificarPermisos({level: 1, responseType: "json"}),
+    creditosPersonalesController.resumenCaja);
+
+router.post("/creditos-personales/registrar-caja",
+    middlewares.verificarPermisos({level: 1, responseType: "json"}),
+    creditosPersonalesController.registrarMovimientoCaja);
+
 module.exports = router;
