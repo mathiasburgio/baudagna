@@ -140,21 +140,21 @@
         <div class="col-sm-4 invoice-col">
             Para
             <address>
-                <strong id="clienteNombre">Juan Pérez</strong><br>
-                DOC: <span id="clienteDoc">20.333.444</span><br>
-                Domicilio: <span id="clienteDireccion">Calle Falsa 123</span><br>
-                Localidad: <span id="clienteLocalidad">Rosario, Santa Fe</span><br>
-                Tel: <span id="clienteTel">341-555-0000</span>
+                <strong id="clienteNombre">-</strong><br>
+                DOC: <span id="clienteDoc">-</span><br>
+                Domicilio: <span id="clienteDireccion">-</span><br>
+                Localidad: <span id="clienteLocalidad">-</span><br>
+                Tel: <span id="clienteTel">-</span>
             </address>
         </div>
         
         <div class="col-sm-4 invoice-col text-right">
-            <b>Recibo de Pago #<span id="nroRecibo">0001-000456</span></b><br>
-            <b>Fecha de cobro:</b> <span id="fechaCobro">15/06/2026</span><br>
-            <b>Crédito Nº:</b> <span id="nroCredito">CR-9921</span><br>
-            <b>Cuota Nro:</b> <span id="nroCuota">3 de 12</span><br>
-            <b>Vencimiento Próx:</b> <span id="vtoProximo">15/06/2026</span><br>
-            <b>Medio de pago:</b> <span id="medioPago">Efectivo</span>
+            <b>Recibo de Pago #<span id="nroRecibo">-</span></b><br>
+            <b>Fecha de cobro:</b> <span id="fechaCobro">-</span><br>
+            <b>Crédito Nº:</b> <span id="nroCredito">-</span><br>
+            <b>Cuota Nro:</b> <span id="nroCuota">-</span><br>
+            <b>Vencimiento Próx:</b> <span id="vtoProximo">-</span><br>
+            <b>Medio de pago:</b> <span id="medioPago">-</span>
         </div>
     </div>
 
@@ -180,9 +180,7 @@
         <!-- Columna de Notas y Legales -->
         <div class="col-6">
             <p class="lead">Son pesos:</p>
-            <p class="text-muted well well-sm shadow-none text-uppercase" style="margin-top: 10px;" id="montoLetras">
-                Cincuenta y dos mil quinientos con 00/100 centavos.
-            </p>
+            <p class="text-muted well well-sm shadow-none text-uppercase" style="margin-top: 10px;" id="montoLetras">-</p>
             
             <p class="text-muted small text-justify mt-3">
                 <strong>Cláusula legal:</strong> El pago de la presente cuota no implica la cancelación de deudas anteriores, 
@@ -254,25 +252,67 @@
     let utils = new Utils();
     let fechasTemporal = new FechasTemporal();
 
+    let data = null;
+
     function llenarDatos() {
+        const credito = data.credito || {};
+        const cuota = data.cuota || {};
+        const cobro = data.cobro || {};
+        const datos = credito.datosGenerales || {};
+        const obtenerValor = (...valores) => {
+            const valor = valores.find(valor => valor !== undefined && valor !== null && String(valor).trim() !== "");
+            return valor === undefined ? "-" : String(valor).trim();
+        };
+        const establecerTexto = (selector, valor) => {
+            document.querySelector(selector).textContent = obtenerValor(valor);
+        };
+        const formatearFecha = fecha => {
+            if(!fecha) return "-";
+
+            const texto = String(fecha).trim();
+            const fechaSimple = texto.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+            if(fechaSimple) return `${fechaSimple[3]}/${fechaSimple[2]}/${fechaSimple[1]}`;
+
+            const fechaDate = fecha instanceof Date ? fecha : new Date(texto);
+            if(!Number.isNaN(fechaDate.getTime())){
+                return fechaDate.toLocaleDateString("es-AR", {
+                    timeZone: "America/Argentina/Buenos_Aires"
+                });
+            }
+
+            return "-";
+        };
+        const montoCobrado = Number(cobro.monto) || 0;
+        const montoPunitorios = Number(cobro.montoPunitorios) || 0;
+
         // Fechas y Cabecera
-        document.querySelector("#fechaActual").innerHTML = fechasTemporal.toString(new Date(), "arg");
-        document.querySelector("#fechaCobro").innerHTML = new Date(data.cobro.createdAt).toLocaleDateString();
-        document.querySelector("#nroRecibo").innerHTML = data.cobro.reciboNumero;
-        document.querySelector("#nroCredito").innerHTML = data.credito.numero;
-        document.querySelector("#nroCuota").innerHTML = data.cuota.numero;
-        document.querySelector("#vtoProximo").innerHTML = data.credito.proximoVencimiento ? new Date(data.credito.proximoVencimiento).toLocaleDateString() : '-';
-        document.querySelector("#medioPago").innerHTML = data.cobro.metodo || '-';
+        establecerTexto("#fechaActual", formatearFecha(new Date()));
+        establecerTexto("#fechaCobro", formatearFecha(cobro.createdAt));
+        establecerTexto("#nroRecibo", cobro.reciboNumero);
+        establecerTexto("#nroCredito", credito.numero);
+        establecerTexto("#nroCuota", cuota.numero);
+        establecerTexto("#vtoProximo", formatearFecha(credito.proximoVencimiento));
+        establecerTexto("#medioPago", cobro.metodo);
         
         // Cliente
-        document.querySelector("#clienteNombre").innerHTML = data.credito.datosGenerales["datos-personales-apellidos"] + ", " + data.credito.datosGenerales["datos-personales-nombres"];
-        document.querySelector("#clienteDoc").innerHTML = (data.credito.datosGenerales["datos-personales-tipo-documento"] + " " + data.credito.datosGenerales["datos-personales-numero-documento"]).trim() || "-";
-        document.querySelector("#clienteDireccion").innerHTML = data.credito.datosGenerales?.["datos-personales-direccion"] || "-";
-        document.querySelector("#clienteLocalidad").innerHTML = data.credito.datosGenerales?.["datos-personales-localidad"] || "-";
-        document.querySelector("#clienteTel").innerHTML = data.credito.datosGenerales?.["datos-personales-telefono"] || "-";
+        const apellido = obtenerValor(datos["datos-personales-apellidos"]);
+        const nombres = obtenerValor(datos["datos-personales-nombres"]);
+        const nombreCliente = [apellido, nombres].filter(valor => valor !== "-").join(", ") || "-";
+        const tipoDocumento = obtenerValor(datos["datos-personales-tipo-documento"]);
+        const numeroDocumento = obtenerValor(datos["datos-personales-numero-documento"]);
+        const documento = [tipoDocumento, numeroDocumento].filter(valor => valor !== "-").join(" ") || "-";
+        const localidad = obtenerValor(datos["direccion-localidad"]);
+        const provincia = obtenerValor(datos["direccion-provincia"]);
+        const localidadCompleta = [localidad, provincia].filter(valor => valor !== "-").join(", ") || "-";
+
+        establecerTexto("#clienteNombre", nombreCliente);
+        establecerTexto("#clienteDoc", documento);
+        establecerTexto("#clienteDireccion", datos["direccion-calle"]);
+        establecerTexto("#clienteLocalidad", localidadCompleta);
+        establecerTexto("#clienteTel", datos["contacto-telefono"]);
 
         // Monto en letras
-        document.querySelector("#montoLetras").innerHTML = numeroALetras(parseInt(data.cobro.monto));
+        establecerTexto("#montoLetras", numeroALetras(montoCobrado));
 
         //Tabla
         const agregarFila = (desc, moneda, importe) => {
@@ -286,15 +326,16 @@
             $("#tablaConceptos").append(fox);
         };
 
-        agregarFila(`Monto cuota núm ${data.cuota.numero} con vencimiento ${fechasTemporal.toString(data.cuota.vencimiento, "arg")}`, "ARS", (data.cobro?.monto - (data.cobro?.montoPunitorios || 0)));
+        $("#tablaConceptos").empty();
+        agregarFila(`Monto cuota núm ${obtenerValor(cuota.numero)} con vencimiento ${formatearFecha(cuota.vencimiento)}`, "ARS", montoCobrado - montoPunitorios);
         //agregarFila("Intereses Compensatorios", "ARS", data.cuota.montoInteres);
-        agregarFila(`Punitorios por Mora (${data.cobro?.diasPunitorios || 0} días)`, "ARS", data.cobro?.montoPunitorios || 0);
+        agregarFila(`Punitorios por Mora (${Number(cobro.diasMora) || 0} días)`, "ARS", montoPunitorios);
 
         // Renderizar Totales
         /* document.querySelector("#subtotalCuota").innerHTML = `$ ${sumaCapital.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
         document.querySelector("#totalIntereses").innerHTML = `$ ${sumaIntereses.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
         document.querySelector("#totalMora").innerHTML = `$ ${sumaMora.toLocaleString('es-AR', {minimumFractionDigits: 2})}`; */
-        document.querySelector("#totalAbonado").innerHTML = `$ ${utils.formatNumber(data.cobro.monto)}`;
+        document.querySelector("#totalAbonado").textContent = `$ ${utils.formatNumber(montoCobrado)}`;
         
         //document.querySelector("#saldoPendiente").innerHTML = `$ ${data.saldos.saldoRestante.toLocaleString('es-AR', {minimumFractionDigits: 2})}`;
     }
@@ -314,20 +355,31 @@
         let credito = await $.get("/creditos-personales/obtener-credito/" + creditoId);
         if(!credito) return modal.message("Crédito no encontrado");
         
-        let cuota = cuotaId ? credito.cuotas.find(c => c._id == cuotaId) : null;
-        let cobro = cobroId ? credito.cobros.find(c => c._id == cobroId) : null;
-        if(!cobro && cuota) cobro = credito.cobros.find(c => c.cuotaId == cuota._id);
-        if(!cuota && cobro) cuota = credito.cuotas.find(c => c._id == cobro.cuotaId);
+        let cuota = cuotaId ? (credito.cuotas || []).find(c => c._id == cuotaId) : null;
+        let cobro = cobroId ? (credito.cobros || []).find(c => c._id == cobroId) : null;
+        if(!cobro && cuota) cobro = (credito.cobros || []).find(c => c.cuotaId == cuota._id);
+        if(!cuota && cobro) cuota = (credito.cuotas || []).find(c => c._id == cobro.cuotaId);
         console.log({credito, cuota, cobro});
+
+        if(!cuota || !cobro) return modal.message("No se encontraron los datos de la cuota o del cobro para generar el recibo.");
 
         data = { credito, cuota, cobro };
         llenarDatos(); 
     }
     function numeroALetras(numero) {
-        let aux = window.NumerosALetras(numero).toLowerCase();
-        return aux
-            .replace("pesos", "Pesos con ")
-            .replace("m.n.", "Centavos");
+        if(typeof window.NumerosALetras !== "function"){
+            return `Pesos ${utils.formatNumber(numero, 2)}`;
+        }
+
+        try{
+            let aux = window.NumerosALetras(numero).toLowerCase();
+            return aux
+                .replace("pesos", "Pesos con ")
+                .replace("m.n.", "Centavos");
+        }catch(e){
+            console.error("No se pudo convertir el monto a letras", e);
+            return `Pesos ${utils.formatNumber(numero, 2)}`;
+        }
     }
     // Ejecutar la función al cargar la página
     window.onload = async () => {

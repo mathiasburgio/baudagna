@@ -505,8 +505,18 @@
         </div>
     </div>
     <div id="modal-cuota">
+        <div class="text-center mb-4">
+            <div class="btn-group" role="group" aria-label="Vista de cuota">
+                <button type="button" class="btn btn-outline-primary" name="vista-cuota" data-vista="modificar">
+                    <i class="fas fa-pen mr-1"></i> Modificar
+                </button>
+                <button type="button" class="btn btn-primary active" name="vista-cuota" data-vista="cobrar">
+                    <i class="fas fa-dollar-sign mr-1"></i> Cobrar
+                </button>
+            </div>
+        </div>
         <div class="row">
-            <div class="col">
+            <div class="col-12 d-none" data-seccion-cuota="modificar">
                 <div class="titulo">Modificar</div>
                 <div class="row">
                     <div class="col">
@@ -548,7 +558,7 @@
                     <button class="btn btn-flat btn-primary ml-2" name="modificar">Modificar</button>
                 </div>
             </div>
-            <div class="col">
+            <div class="col-12" data-seccion-cuota="cobrar">
                 <div class="titulo">Cobrar</div>
                 <div class="row">
                     <div class="col">

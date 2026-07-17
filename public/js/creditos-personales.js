@@ -687,22 +687,52 @@ class CreditosPersonales{
 
         let acumuladores = this.creditoActual.cuotas.reduce((acc, cuota)=>{
             if(cuota.eliminado) return acc;
-            acc.montoTotal = (acc.montoTotal || 0) + cuota.monto;
+            const montoCapital = Number(cuota.montoCapital) || 0;
+            const montoInteres = Number(cuota.montoInteres) || 0;
+            const montoCuota = Number(cuota.monto) || 0;
+            acc.montoCapital = (acc.montoCapital || 0) + montoCapital;
+            acc.montoInteres = (acc.montoInteres || 0) + montoInteres;
+            acc.montoTotal = (acc.montoTotal || 0) + montoCuota;
             acc.cantidad = (acc.cantidad || 0) + 1;
+            if(cuota.tasaInteres !== undefined && cuota.tasaInteres !== null && cuota.tasaInteres !== "" && Number.isFinite(Number(cuota.tasaInteres))){
+                acc.tasasInteres = acc.tasasInteres || [];
+                acc.tasasInteres.push(Number(cuota.tasaInteres));
+            }
             if(cuota.cobrado){
-                acc.montoCobrado = (acc.montoCobrado || 0) + cuota.monto;
+                acc.montoCobrado = (acc.montoCobrado || 0) + montoCuota;
                 acc.cantidadCobrada = (acc.cantidadCobrada || 0) + 1;
             }else{
-                acc.montoPendiente = (acc.montoPendiente || 0) + cuota.monto;
+                acc.montoPendiente = (acc.montoPendiente || 0) + montoCuota;
                 acc.cantidadPendiente = (acc.cantidadPendiente || 0) + 1;
             }
             return acc;
         }, {});
 
+        const tasasInteres = [...new Set((acumuladores.tasasInteres || []).map(tasa => tasa.toFixed(2)))];
+        const detalleInteres = tasasInteres.length === 1
+            ? ` (${utils.formatNumber(tasasInteres[0], 2)}%)`
+            : tasasInteres.length > 1 ? " (tasas variables)" : "";
+
         let tfoot = `
         <tr>
             <td colspan='3' class='font-weight-bold text-right'>
-                Total
+                Monto total capital
+            </td>
+            <td class='text-right text-monospace'>
+                ${utils.formatNumber(acumuladores.montoCapital || 0)}
+            </td>
+        </tr>
+        <tr>
+            <td colspan='3' class='font-weight-bold text-right'>
+                Monto interés${detalleInteres}
+            </td>
+            <td class='text-right text-monospace'>
+                ${utils.formatNumber(acumuladores.montoInteres || 0)}
+            </td>
+        </tr>
+        <tr>
+            <td colspan='3' class='font-weight-bold text-right'>
+                Monto total (capital + interés)
             </td>
             <td class='text-right text-monospace'>
                 ${utils.formatNumber(acumuladores.montoTotal || 0)}
@@ -718,7 +748,7 @@ class CreditosPersonales{
         </tr>
         <tr>
             <td colspan='3' class='font-weight-bold text-right'>
-                Pendiente
+                Monto restante
             </td>
             <td class='text-right text-monospace'>
                 ${utils.formatNumber(acumuladores.montoPendiente || 0)}
@@ -742,12 +772,27 @@ class CreditosPersonales{
         let montoCobroCuota = montoOriginalCuota;
 
         modal.show({
-            title: "Editar cuota",
+            title: "Cuota",
             body: $("#modal-cuota").html(),
-            size: "xl",
+            size: "lg",
             buttons: "back"
         })
         let punit = Number(window.primordial.punitorios);
+
+        const mostrarVistaCuota = vista => {
+            $("#modal [data-seccion-cuota]").addClass("d-none");
+            $(`#modal [data-seccion-cuota='${vista}']`).removeClass("d-none");
+
+            const $botonesVista = $("#modal [name='vista-cuota']");
+            $botonesVista.removeClass("btn-primary active").addClass("btn-outline-primary");
+            $botonesVista.filter(`[data-vista='${vista}']`)
+                .removeClass("btn-outline-primary")
+                .addClass("btn-primary active");
+        };
+        $("#modal [name='vista-cuota']").on("click", ev => {
+            mostrarVistaCuota($(ev.currentTarget).data("vista"));
+        });
+        mostrarVistaCuota("cobrar");
 
         //modificar eliminar
         $("#modal [name='numero']").val(cuota.numero);
@@ -820,7 +865,7 @@ class CreditosPersonales{
             $("#modal .modal-body input").attr("disabled", true);
             $("#modal .modal-body select").attr("disabled", true);
             $("#modal .modal-body textarea").attr("disabled", true);
-            $("#modal .modal-body button").attr("disabled", true);
+            $("#modal .modal-body button:not([name='vista-cuota'])").attr("disabled", true);
             $("#modal [name='imp-recibo']").prop("disabled", false);
             if(cuota.facturaId){
                 $("#modal [name='facturar']").prop("disabled", true);
@@ -949,7 +994,7 @@ class CreditosPersonales{
         $("#modal [name='imp-recibo']").on("click", async ev=>{
             let cuotaId = cuota._id;
             let creditoId = this.creditoActual._id;
-            let w = window.open("/html/recibo.html?creditoId=" + creditoId + "&cuotaId=" + cuotaId, "_blank");
+            let w = window.open("/html/recibo.html?creditoId=" + creditoId + "&cuotaId=" + cuotaId + "&v=" + Date.now(), "_blank");
         });
     }
     modalResumen(){
@@ -1207,41 +1252,77 @@ class CreditosPersonales{
         }
 
         encabezado( worksheet.getCell("A1"), "Cliente", 35 );
-        encabezado( worksheet.getCell("B1"), "Cuotas", 15 );
-        encabezado( worksheet.getCell("C1"), "Monto capital", 18 );
-        encabezado( worksheet.getCell("D1"), "Monto total", 18 );
-        encabezado( worksheet.getCell("E1"), "Monto cobrado", 18 );
-        encabezado( worksheet.getCell("F1"), "Monto pendiente", 18 );
-        encabezado( worksheet.getCell("G1"), "Detalle", 50 );
+        encabezado( worksheet.getCell("B1"), "Dirección", 35 );
+        encabezado( worksheet.getCell("C1"), "Teléfono", 20 );
+        encabezado( worksheet.getCell("D1"), "Monto total capital", 20 );
+        encabezado( worksheet.getCell("E1"), "Monto interés (tasa aplicada)", 24 );
+        encabezado( worksheet.getCell("F1"), "Porcentaje aplicado", 20 );
+        encabezado( worksheet.getCell("G1"), "Monto total (capital + interés)", 27 );
+        encabezado( worksheet.getCell("H1"), "Monto cobrado", 18 );
+        encabezado( worksheet.getCell("I1"), "Monto restante", 18 );
+        encabezado( worksheet.getCell("J1"), "Cuotas", 16 );
+        encabezado( worksheet.getCell("K1"), "Monto próxima cuota", 22 );
+        encabezado( worksheet.getCell("L1"), "Detalle", 50 );
+        encabezado( worksheet.getCell("M1"), "Observación", 50 );
 
         let filaInicial = 2;
         let ind = 0;
         for(let credito of this.listado){
-            let cuotasTotales = 0, cuotasCobradas = 0, montoCapital = 0, montoTotal = 0, montoCobrado = 0, montoPendiente = 0;
-            (credito?.cuotas || []).forEach(c=>{
-                if(c.eliminado) return;
+            let cuotasTotales = 0, cuotasCobradas = 0, montoCapital = 0, montoInteres = 0, montoTotal = 0, montoCobrado = 0, montoPendiente = 0;
+            const cuotasActivas = (credito?.cuotas || []).filter(c => !c.eliminado);
+            const tasasInteres = [];
+            cuotasActivas.forEach(c=>{
                 cuotasTotales++;
-                montoCapital += c.montoCapital || 0;
-                montoTotal += c.monto || 0;
+                montoCapital += Number(c.montoCapital) || 0;
+                montoInteres += Number(c.montoInteres) || 0;
+                montoTotal += Number(c.monto) || 0;
+                if(c.tasaInteres !== undefined && c.tasaInteres !== null && c.tasaInteres !== "" && Number.isFinite(Number(c.tasaInteres))){
+                    tasasInteres.push(Number(c.tasaInteres));
+                }
                 if(c.cobrado){
                     cuotasCobradas++;
-                    montoCobrado += c.monto || 0;
+                    montoCobrado += Number(c.monto) || 0;
                 }else{
-                    montoPendiente += c.monto || 0;
+                    montoPendiente += Number(c.monto) || 0;
                 }
             });
-            worksheet.getCell("A" + (filaInicial + ind)).value = (credito.datosGenerales?.["datos-personales-apellidos"] + " " + credito.datosGenerales?.["datos-personales-nombres"]) || "?";
-            worksheet.getCell("B" + (filaInicial + ind)).value = cuotasCobradas + " de " + cuotasTotales;
-            worksheet.getCell("C" + (filaInicial + ind)).value = montoCapital;
-            worksheet.getCell("D" + (filaInicial + ind)).value = montoTotal;
-            worksheet.getCell("E" + (filaInicial + ind)).value = montoCobrado;
-            worksheet.getCell("F" + (filaInicial + ind)).value = montoPendiente;
-            worksheet.getCell("G" + (filaInicial + ind)).value = credito.datosGenerales?.["datos-personales-detalle"] || "";
+
+            const datos = credito.datosGenerales || {};
+            const nombre = [datos["datos-personales-apellidos"], datos["datos-personales-nombres"]]
+                .filter(valor => valor && String(valor).trim())
+                .join(" ") || "-";
+            const direccion = [datos["direccion-calle"], datos["direccion-localidad"], datos["direccion-provincia"]]
+                .filter(valor => valor && String(valor).trim())
+                .join(", ") || "-";
+            const tasasUnicas = [...new Set(tasasInteres.map(tasa => tasa.toFixed(2)))];
+            const porcentajeAplicado = tasasUnicas.length === 1
+                ? Number(tasasUnicas[0]) / 100
+                : tasasUnicas.length > 1 ? "Tasas variables" : "-";
+            const proximaCuota = cuotasActivas
+                .filter(c => !c.cobrado)
+                .sort((a, b) => (a.vencimiento || "9999-12-31").localeCompare(b.vencimiento || "9999-12-31"))[0];
+            const fila = filaInicial + ind;
+
+            worksheet.getCell("A" + fila).value = nombre;
+            worksheet.getCell("B" + fila).value = direccion;
+            worksheet.getCell("C" + fila).value = datos["contacto-telefono"] || "-";
+            worksheet.getCell("D" + fila).value = montoCapital;
+            worksheet.getCell("E" + fila).value = montoInteres;
+            worksheet.getCell("F" + fila).value = porcentajeAplicado;
+            worksheet.getCell("G" + fila).value = montoTotal;
+            worksheet.getCell("H" + fila).value = montoCobrado;
+            worksheet.getCell("I" + fila).value = montoPendiente;
+            worksheet.getCell("J" + fila).value = `${cuotasCobradas} de ${cuotasTotales}`;
+            worksheet.getCell("K" + fila).value = Number(proximaCuota?.monto) || 0;
+            worksheet.getCell("L" + fila).value = datos["datos-personales-detalle"] || "";
+            worksheet.getCell("M" + fila).value = datos.observaciones || "";
             ind++;
         }
 
         const formatoMonto = {numFmt: '#,##0.00'};
-        ["C", "D", "E", "F"].forEach(column => formatearColumna(column, formatoMonto));
+        ["D", "E", "G", "H", "I", "K"].forEach(column => formatearColumna(column, formatoMonto));
+        formatearColumna("F", {numFmt: '0.00%'});
+        ["L", "M"].forEach(column => formatearColumna(column, {alignment: {wrapText: true, vertical: "top"}}));
 
         const blob = await workbook.xlsx.writeBuffer();
         saveAs(new Blob([blob], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), 'creditos-personales.xlsx');
